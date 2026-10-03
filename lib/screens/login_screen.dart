@@ -17,7 +17,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _mobileController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  void _handleLogin() {
+  bool _isLoading = false;
+
+  void _handleLogin() async {
     final String mobile = _mobileController.text.replaceAll(RegExp(r'\D'), '');
     final String password = _passwordController.text;
 
@@ -43,9 +45,21 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
+    setState(() {
+      _isLoading = true;
+    });
+
     final appState = Provider.of<AppState>(context, listen: false);
-    appState.login(mobile);
-    Navigator.pushReplacementNamed(context, '/home');
+    final success = await appState.login(mobile, password);
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (success) {
+        Navigator.pushReplacementNamed(context, '/home');
+      }
+    }
   }
 
   @override
@@ -197,7 +211,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   // Login Button
                   ElevatedButton(
-                    onPressed: _handleLogin,
+                    onPressed: _isLoading ? null : _handleLogin,
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       backgroundColor: AppColors.secondaryOrange,
@@ -207,14 +221,23 @@ class _LoginScreenState extends State<LoginScreen> {
                       elevation: 4,
                       shadowColor: AppColors.secondaryOrange.withValues(alpha: 0.4),
                     ),
-                    child: Text(
-                      'login'.tr(),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : Text(
+                            'login'.tr(),
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                   const SizedBox(height: 8),
 

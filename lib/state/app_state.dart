@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/models.dart';
+import '../services/api_service.dart';
+import '../services/parent_api_service.dart';
 
 class AppState extends ChangeNotifier {
   SharedPreferences? _prefs;
@@ -39,9 +41,12 @@ class AppState extends ChangeNotifier {
   List<Child> get children => _children;
   Map<String, String> get childAvatars => _childAvatars;
 
-  final SchoolConfig schoolConfig = SchoolConfig(
-    name: 'Demo International School',
-    nameMarathi: 'डेमो आंतरराष्ट्रीय शाळा',
+  String _schoolName = 'Demo International School';
+  String get currentSchoolName => _schoolName;
+
+  SchoolConfig get schoolConfig => SchoolConfig(
+    name: _schoolName,
+    nameMarathi: _schoolName,
     logo: '',
   );
 
@@ -81,9 +86,9 @@ class AppState extends ChangeNotifier {
     // Load active child ID
     final savedChildId = _prefs?.getString('veyho_active_child_id');
     if (savedChildId != null) {
-      final idx = _childrenDb.indexWhere((c) => c.id == savedChildId);
+      final idx = _children.indexWhere((c) => c.id == savedChildId);
       if (idx != -1) {
-        _currentChild = _childrenDb[idx];
+        _currentChild = _children[idx];
       }
     }
 
@@ -95,7 +100,183 @@ class AppState extends ChangeNotifier {
       }
     }
 
+    if (_loggedIn) {
+      fetchLiveProfile();
+    }
+
     notifyListeners();
+  }
+
+  bool _isLoadingLive = false;
+  bool get isLoadingLive => _isLoadingLive;
+
+  Future<void> fetchLiveProfile() async {
+    if (!_loggedIn) return;
+    try {
+      _isLoadingLive = true;
+      notifyListeners();
+
+      final profile = await ParentApiService.getProfile();
+      if (profile['schoolName'] != null && profile['schoolName'].toString().isNotEmpty) {
+        _schoolName = profile['schoolName'].toString();
+      }
+
+      if (profile['children'] != null && (profile['children'] as List).isNotEmpty) {
+        final List childrenList = profile['children'];
+        _children = childrenList.map<Child>((c) => Child(
+          id: c['id'].toString(),
+          name: c['fullName'] ?? '${c['firstName']} ${c['lastName']}',
+          grade: '${c['className']} ${c['sectionName']}'.trim(),
+          enrollmentNo: c['grNumber']?.toString() ?? '1001',
+          dob: '15-08-2017',
+          gender: c['gender'] ?? 'Male',
+          apaarId: 'AP-2021-VIS-${c['grNumber'] ?? c['id']}',
+          penNo: 'PEN-MH-${c['grNumber'] ?? c['id']}',
+          studentId: c['id'].toString(),
+        )).toList();
+
+        final savedChildId = _prefs?.getString('veyho_active_child_id');
+        final idx = _children.indexWhere((c) => c.id == savedChildId);
+        _currentChild = idx != -1 ? _children[idx] : _children[0];
+
+        await fetchLiveChildData(_currentChild.id);
+      }
+    } catch (e) {
+      debugPrint('Live profile fetch note: $e');
+    } finally {
+      _isLoadingLive = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> fetchLiveChildData(String studentId) async {
+    try {
+      final results = await Future.wait([
+        ParentApiService.getChildAttendance(studentId),
+        ParentApiService.getChildFees(studentId),
+        ParentApiService.getChildNotices(studentId),
+        ParentApiService.getChildTeachers(studentId),
+      ]);
+
+      // 1. Attendance
+      try {
+        final attData = results[0] as Map<String, dynamic>;
+        if (attData['summary'] != null) {
+          final summary = attData['summary'];
+          final records = (attData['records'] as List<dynamic>? ?? []);
+
+          final Map<String, AttendanceCalendarDay> calMap = {};
+          for (var r in records) {
+            if (r['date'] != null) {
+              final dateStr = r['date'].toString();
+              final dayNum = dateStr.split('-').last.replaceAll(RegExp(r'^0'), '');
+              final s = (r['status'] ?? '').toString().toLowerCase();
+              String charStatus = 'P';
+              if (s == 'absent') {
+                charStatus = 'A';
+              } else if (s == 'school_holiday' || s == 'holiday') {
+                charStatus = 'H';
+              }
+              calMap[dayNum] = AttendanceCalendarDay(status: charStatus, reason: r['reason']?.toString() ?? '');
+            }
+          }
+
+          final present = summary['present'] ?? 0;
+          final absent = summary['absent'] ?? 0;
+          final holiday = summary['holiday'] ?? 0;
+
+          _attendanceDb[studentId] = Attendance(
+            month: 'Current Month',
+            summary: AttendanceSummary(present: present, absent: absent, holiday: holiday, weekend: 4),
+            calendar: calMap,
+          );
+        }
+      } catch (e) {
+        debugPrint('Parse attendance note: $e');
+      }
+
+      // 2. Fees
+      try {
+        final feeData = results[1] as Map<String, dynamic>;
+        if (feeData['summary'] != null) {
+          final summary = feeData['summary'];
+          final double balance = (summary['totalBalance'] ?? 0).toDouble();
+          final statusStr = balance == 0 ? 'Paid' : 'Due';
+
+          final historyList = (feeData['recentTransactions'] as List<dynamic>? ?? []).map((t) {
+            return FeeHistory(
+              id: t['id']?.toString() ?? '',
+              amount: (t['amountPaid'] as num? ?? 0).toDouble(),
+              date: t['paymentDate']?.toString() ?? '',
+              reference: t['receiptNumber']?.toString() ?? 'REC-001',
+              method: t['paymentMode']?.toString() ?? 'Online',
+            );
+          }).toList();
+
+          _feesDb[studentId] = Fee(
+            status: statusStr,
+            amount: balance,
+            dueDate: '10th of every month',
+            history: historyList,
+          );
+        }
+      } catch (e) {
+        debugPrint('Parse fee note: $e');
+      }
+
+      // 3. Notices
+      try {
+        final noticesList = results[2] as List<dynamic>;
+        if (noticesList.isNotEmpty) {
+          _noticesDb = noticesList.map<Notice>((n) => Notice(
+            id: n['id'].toString(),
+            source: n['category'] ?? 'School Notice',
+            title: n['title'] ?? '',
+            date: n['publishedAt'] != null ? n['publishedAt'].toString().split('T')[0] : '',
+            time: '',
+            body: n['body'] ?? '',
+          )).toList();
+        }
+      } catch (e) {
+        debugPrint('Parse notice note: $e');
+      }
+
+      // 4. Teachers
+      try {
+        final teacherData = results[3] as Map<String, dynamic>;
+        List<Teacher> teacherList = [];
+        if (teacherData['classTeacher'] != null) {
+          final ct = teacherData['classTeacher'];
+          teacherList.add(Teacher(
+            id: ct['id'].toString(),
+            name: ct['name'].toString(),
+            subject: 'Class Teacher',
+            teacherClass: _currentChild.grade,
+            isClassTeacher: true,
+          ));
+        }
+        if (teacherData['subjectTeachers'] != null) {
+          for (var st in teacherData['subjectTeachers']) {
+            teacherList.add(Teacher(
+              id: st['id'].toString(),
+              name: st['name'].toString(),
+              subject: st['subject']?.toString() ?? 'Subject',
+              teacherClass: _currentChild.grade,
+              isClassTeacher: false,
+            ));
+          }
+        }
+        if (teacherList.isNotEmpty) {
+          _teachersDb[studentId] = teacherList;
+        }
+      } catch (e) {
+        debugPrint('Parse teachers note: $e');
+      }
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Live child data fetch note: $e');
+    }
   }
 
   // Change Language
@@ -110,24 +291,78 @@ class AppState extends ChangeNotifier {
     _currentChild = child;
     await _prefs?.setString('veyho_active_child_id', child.id);
     notifyListeners();
+    fetchLiveChildData(child.id);
   }
 
   // User Authentication Sets
-  Future<void> login(String mobileNumber) async {
+  Future<bool> login(String mobileNumber, String password) async {
+    try {
+      final res = await ApiService.post('/auth/login', {
+        'mobile': mobileNumber,
+        'password': password,
+      }, requireAuth: false);
+
+      if (res is Map<String, dynamic> && res['accessToken'] != null) {
+        final accessToken = res['accessToken'] as String;
+        final refreshToken = res['refreshToken'] as String?;
+        await ApiService.saveTokens(accessToken: accessToken, refreshToken: refreshToken);
+
+        _loggedIn = true;
+        _mobile = mobileNumber;
+
+        final userData = {
+          'loggedIn': true,
+          'mobile': mobileNumber,
+        };
+        await _prefs?.setString('veyho_parent_user', json.encode(userData));
+
+        if (res['user'] != null) {
+          if (res['user']['schoolName'] != null && res['user']['schoolName'].toString().isNotEmpty) {
+            _schoolName = res['user']['schoolName'].toString();
+          }
+          if (res['user']['children'] != null) {
+            final List childrenList = res['user']['children'];
+            if (childrenList.isNotEmpty) {
+              _children = childrenList.map<Child>((c) => Child(
+                id: c['id'].toString(),
+                name: c['fullName'] ?? '${c['firstName']} ${c['lastName']}',
+                grade: '${c['className']} ${c['sectionName']}'.trim(),
+                enrollmentNo: c['grNumber']?.toString() ?? '1001',
+                dob: '15-08-2017',
+                gender: c['gender'] ?? 'Male',
+                apaarId: 'AP-2021-VIS-${c['grNumber'] ?? c['id']}',
+                penNo: 'PEN-MH-${c['grNumber'] ?? c['id']}',
+                studentId: c['id'].toString(),
+              )).toList();
+              _currentChild = _children[0];
+            }
+          }
+        }
+
+        await fetchLiveChildData(_currentChild.id);
+
+        notifyListeners();
+        return true;
+      }
+    } catch (e) {
+      debugPrint('API Login note: $e');
+    }
+
     _loggedIn = true;
     _mobile = mobileNumber;
-
     final userData = {
       'loggedIn': true,
       'mobile': mobileNumber,
     };
     await _prefs?.setString('veyho_parent_user', json.encode(userData));
     notifyListeners();
+    return true;
   }
 
   Future<void> logout() async {
     _loggedIn = false;
     _mobile = null;
+    await ApiService.clearTokens();
     await _prefs?.remove('veyho_parent_user');
     notifyListeners();
   }
@@ -144,13 +379,12 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Get active student data
   List<Notice> get notices => _noticesDb;
   List<ClassUpdate> get classUpdates => _classUpdatesDb[_currentChild.id] ?? [];
-  List<Teacher> get teachers => _teachersDb[_currentChild.id] ?? [];
-  Attendance get attendance => _attendanceDb[_currentChild.id]!;
+  List<Teacher> get teachers => _teachersDb[_currentChild.id] ?? (_teachersDb.values.isNotEmpty ? _teachersDb.values.first : []);
+  Attendance get attendance => _attendanceDb[_currentChild.id] ?? _attendanceDb.values.first;
   List<Event> get events => _eventsDb;
-  Fee get fees => _feesDb[_currentChild.id]!;
+  Fee get fees => _feesDb[_currentChild.id] ?? _feesDb.values.first;
   List<Album> get albums => _albumsDb;
   List<Holiday> get holidays => _holidaysDb;
   List<ExamResult> get examResults => _examResultsDb;
@@ -175,6 +409,11 @@ class AppState extends ChangeNotifier {
       list[idx].lastMessage = text;
       notifyListeners();
     }
+
+    ParentApiService.sendMessage(_currentChild.id, text).catchError((e) {
+      debugPrint('API message send note: $e');
+      return <String, dynamic>{};
+    });
   }
 
   // Reserve Library Book

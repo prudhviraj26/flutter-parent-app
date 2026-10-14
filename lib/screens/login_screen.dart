@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -16,6 +17,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _mobileController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final FocusNode _passwordFocusNode = FocusNode();
 
   bool _isLoading = false;
 
@@ -66,6 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void dispose() {
     _mobileController.dispose();
     _passwordController.dispose();
+    _passwordFocusNode.dispose();
     super.dispose();
   }
 
@@ -73,14 +76,6 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
     final String language = appState.language;
-
-    // School Name Dynamic mapping
-    String schoolName = appState.schoolConfig.name;
-    if (language == 'mr') {
-      schoolName = appState.schoolConfig.nameMarathi;
-    } else if (language == 'hi') {
-      schoolName = 'डेमो इंटरनेशनल स्कूल';
-    }
 
     // Company Name Dynamic mapping
     String companyName = appState.veyhoBranding['companyName']!;
@@ -129,21 +124,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(
-                    schoolName,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textMain,
-                    ),
+                  const Center(
+                    child: VeyhoLogo(fontSize: 26),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 6),
                   Text(
                     'parentPortal'.tr(),
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      fontSize: 14,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
                       color: AppColors.textMuted,
                     ),
                   ),
@@ -162,7 +152,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextField(
                     controller: _mobileController,
                     keyboardType: TextInputType.phone,
+                    textInputAction: TextInputAction.next,
                     maxLength: 10,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    onSubmitted: (_) {
+                      FocusScope.of(context).requestFocus(_passwordFocusNode);
+                    },
                     style: const TextStyle(color: AppColors.textMain),
                     decoration: InputDecoration(
                       prefixIcon: const Icon(LucideIcons.smartphone, color: AppColors.textMuted),
@@ -192,7 +187,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 6),
                   TextField(
                     controller: _passwordController,
+                    focusNode: _passwordFocusNode,
                     obscureText: true,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _handleLogin(),
                     style: const TextStyle(color: AppColors.textMain),
                     decoration: InputDecoration(
                       prefixIcon: const Icon(LucideIcons.lock, color: AppColors.textMuted),
@@ -273,21 +271,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   const Divider(color: AppColors.border, height: 1),
                   const SizedBox(height: 12),
 
-                  // Veyho logo & company name
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const VeyhoLogo(fontSize: 18),
-                      const SizedBox(height: 4),
-                      Text(
-                        companyName,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          color: AppColors.textMuted,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+                  // Company branding footer
+                  Text(
+                    companyName,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.textMuted,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ],
               ),

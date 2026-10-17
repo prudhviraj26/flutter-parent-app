@@ -221,61 +221,85 @@ class _HomeScreenState extends State<HomeScreen> {
                           )
                         ],
                       ),
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Row(
+                      child: InkWell(
+                        onTap: () => Navigator.pushNamed(context, '/school-notice'),
+                        borderRadius: BorderRadius.circular(20),
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              const Icon(LucideIcons.megaphone, color: Colors.white, size: 16),
-                              const SizedBox(width: 8),
+                              Row(
+                                children: [
+                                  const Icon(LucideIcons.megaphone, color: Colors.white, size: 16),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'schoolNotice'.tr(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  if (appState.unreadNoticesCount > 0)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Text(
+                                        '${appState.unreadNoticesCount} new',
+                                        style: const TextStyle(
+                                          color: AppColors.primaryTeal,
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
                               Text(
-                                'schoolNotice'.tr(),
+                                latestNotice.title,
                                 style: const TextStyle(
                                   color: Colors.white,
-                                  fontSize: 12,
+                                  fontSize: 16,
                                   fontWeight: FontWeight.bold,
-                                  letterSpacing: 0.5,
                                 ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                latestNotice.body,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  fontSize: 13,
+                                  height: 1.4,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'viewAllNotices'.tr(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                  const Icon(LucideIcons.arrowRight, color: Colors.white70, size: 16),
+                                ],
                               ),
                             ],
                           ),
-                          const SizedBox(height: 12),
-                          Text(
-                            latestNotice.title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            latestNotice.body,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.9),
-                              fontSize: 13,
-                              height: 1.4,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.pushNamed(context, '/school-notice');
-                            },
-                            child: Text(
-                              'viewAllNotices'.tr(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
-                                decoration: TextDecoration.underline,
-                              ),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   const SizedBox(height: 16),

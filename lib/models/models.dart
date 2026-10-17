@@ -153,6 +153,47 @@ class NoticeCta {
   }
 }
 
+class NoticeAttachment {
+  final String name;
+  final String url;
+  final int sizeBytes;
+  final String contentType;
+
+  NoticeAttachment({
+    required this.name,
+    required this.url,
+    this.sizeBytes = 0,
+    this.contentType = '',
+  });
+
+  factory NoticeAttachment.fromJson(Map<String, dynamic> json) {
+    return NoticeAttachment(
+      name: (json['name'] ?? json['fileName'] ?? 'Attachment').toString(),
+      url: (json['readUrl'] ?? json['url'] ?? '').toString(),
+      sizeBytes: (json['sizeBytes'] is int)
+          ? json['sizeBytes'] as int
+          : int.tryParse(json['sizeBytes']?.toString() ?? '0') ?? 0,
+      contentType: (json['contentType'] ?? '').toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'url': url,
+      'sizeBytes': sizeBytes,
+      'contentType': contentType,
+    };
+  }
+
+  String get formattedSize {
+    if (sizeBytes <= 0) return '';
+    if (sizeBytes < 1024) return '$sizeBytes B';
+    if (sizeBytes < 1024 * 1024) return '${(sizeBytes / 1024).toStringAsFixed(1)} KB';
+    return '${(sizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+}
+
 class Notice {
   final String id;
   final String source;
@@ -161,6 +202,12 @@ class Notice {
   final String time;
   final String body;
   final NoticeCta? cta;
+  final String category;
+  final String? publishedAt;
+  final List<NoticeAttachment> attachments;
+  final String? externalUrl;
+  final String? externalUrlLabel;
+  final bool isRead;
 
   Notice({
     required this.id,
@@ -170,17 +217,62 @@ class Notice {
     required this.time,
     required this.body,
     this.cta,
+    this.category = 'School Notice',
+    this.publishedAt,
+    this.attachments = const [],
+    this.externalUrl,
+    this.externalUrlLabel,
+    this.isRead = false,
   });
 
   factory Notice.fromJson(Map<String, dynamic> json) {
+    String formattedDate = (json['date'] ?? '').toString();
+    String formattedTime = (json['time'] ?? '').toString();
+    final pubAt = json['publishedAt']?.toString() ?? json['createdAt']?.toString();
+
+    if (pubAt != null && pubAt.isNotEmpty) {
+      try {
+        final dt = DateTime.parse(pubAt).toLocal();
+        if (formattedDate.isEmpty) {
+          formattedDate = DateFormat('d MMM yyyy').format(dt);
+        }
+        if (formattedTime.isEmpty) {
+          formattedTime = DateFormat('hh:mm a').format(dt);
+        }
+      } catch (_) {}
+    }
+
+    if (formattedDate.isEmpty) {
+      formattedDate = 'Recent';
+    }
+
+    List<NoticeAttachment> parsedAttachments = [];
+    if (json['attachments'] is List) {
+      for (final a in json['attachments'] as List) {
+        if (a is Map<String, dynamic>) {
+          parsedAttachments.add(NoticeAttachment.fromJson(a));
+        } else if (a is String && a.isNotEmpty) {
+          final uriParts = a.split('/');
+          final fileName = uriParts.isNotEmpty ? uriParts.last : 'Attachment';
+          parsedAttachments.add(NoticeAttachment(name: fileName, url: a));
+        }
+      }
+    }
+
     return Notice(
-      id: json['id'] as String,
-      source: json['source'] as String,
-      title: json['title'] as String,
-      date: json['date'] as String,
-      time: json['time'] as String,
-      body: json['body'] as String,
+      id: (json['id'] ?? '').toString(),
+      source: (json['source'] ?? json['senderName'] ?? json['author'] ?? 'School Administration').toString(),
+      title: (json['title'] ?? 'Notice').toString(),
+      date: formattedDate,
+      time: formattedTime,
+      body: (json['body'] ?? json['message'] ?? '').toString(),
       cta: json['cta'] != null ? NoticeCta.fromJson(json['cta'] as Map<String, dynamic>) : null,
+      category: (json['category'] ?? 'School Notice').toString(),
+      publishedAt: pubAt,
+      attachments: parsedAttachments,
+      externalUrl: json['externalUrl']?.toString(),
+      externalUrlLabel: json['externalUrlLabel']?.toString(),
+      isRead: json['isRead'] == true,
     );
   }
 
@@ -193,7 +285,31 @@ class Notice {
       'time': time,
       'body': body,
       'cta': cta?.toJson(),
+      'category': category,
+      'publishedAt': publishedAt,
+      'attachments': attachments.map((a) => a.toJson()).toList(),
+      'externalUrl': externalUrl,
+      'externalUrlLabel': externalUrlLabel,
+      'isRead': isRead,
     };
+  }
+
+  Notice copyWith({bool? isRead}) {
+    return Notice(
+      id: id,
+      source: source,
+      title: title,
+      date: date,
+      time: time,
+      body: body,
+      cta: cta,
+      category: category,
+      publishedAt: publishedAt,
+      attachments: attachments,
+      externalUrl: externalUrl,
+      externalUrlLabel: externalUrlLabel,
+      isRead: isRead ?? this.isRead,
+    );
   }
 }
 

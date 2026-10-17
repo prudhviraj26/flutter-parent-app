@@ -24,6 +24,13 @@ class AppState extends ChangeNotifier {
   // Mock Database lists
   List<Child> _childrenDb = [];
   List<Notice> _noticesDb = [];
+  final Map<String, List<Notice>> _childNoticesDb = {};
+  bool _isNoticesLoading = false;
+  bool get isNoticesLoading => _isNoticesLoading;
+  Set<String> _readNoticeIds = {};
+  Set<String> get readNoticeIds => _readNoticeIds;
+  bool isNoticeRead(String id) => _readNoticeIds.contains(id);
+  int get unreadNoticesCount => notices.where((n) => !isNoticeRead(n.id)).length;
   Map<String, List<ClassUpdate>> _classUpdatesDb = {};
   Map<String, List<Teacher>> _teachersDb = {};
   Map<String, Attendance> _attendanceDb = {};
@@ -105,6 +112,9 @@ class AppState extends ChangeNotifier {
         _childAvatars[child.id] = avatarBase64;
       }
     }
+
+    // Load read notices tracking
+    await _loadReadNoticeIds();
 
     if (_loggedIn) {
       fetchLiveProfile();
@@ -223,14 +233,17 @@ class AppState extends ChangeNotifier {
       try {
         final noticesList = results[2] as List<dynamic>;
         if (noticesList.isNotEmpty) {
-          _noticesDb = noticesList.map<Notice>((n) => Notice(
-            id: n['id'].toString(),
-            source: n['category'] ?? 'School Notice',
-            title: n['title'] ?? '',
-            date: n['publishedAt'] != null ? n['publishedAt'].toString().split('T')[0] : '',
-            time: '',
-            body: n['body'] ?? '',
-          )).toList();
+          final parsed = noticesList
+              .map<Notice>((n) => Notice.fromJson(n as Map<String, dynamic>))
+              .toList();
+          _childNoticesDb[studentId] = parsed;
+          _noticesDb = parsed;
+          for (final n in parsed) {
+            if (n.isRead) {
+              _readNoticeIds.add(n.id);
+            }
+          }
+          await _saveReadNoticeIds();
         }
       } catch (e) {
         debugPrint('Parse notice note: $e');
@@ -545,7 +558,59 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  List<Notice> get notices => _noticesDb;
+  Future<void> fetchNotices(String studentId) async {
+    _isNoticesLoading = true;
+    notifyListeners();
+    try {
+      final list = await ParentApiService.getChildNotices(studentId);
+      final parsed = list
+          .map<Notice>((n) => Notice.fromJson(n as Map<String, dynamic>))
+          .toList();
+      _childNoticesDb[studentId] = parsed;
+      _noticesDb = parsed;
+      for (final n in parsed) {
+        if (n.isRead) {
+          _readNoticeIds.add(n.id);
+        }
+      }
+      await _saveReadNoticeIds();
+    } catch (e) {
+      debugPrint('Error fetching notices: $e');
+    } finally {
+      _isNoticesLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> _loadReadNoticeIds() async {
+    final key = 'veyho_parent_read_notices_${_mobile ?? 'user'}';
+    final list = _prefs?.getStringList(key) ?? [];
+    _readNoticeIds = list.toSet();
+  }
+
+  Future<void> _saveReadNoticeIds() async {
+    final key = 'veyho_parent_read_notices_${_mobile ?? 'user'}';
+    await _prefs?.setStringList(key, _readNoticeIds.toList());
+  }
+
+  Future<void> markNoticeAsRead(String id) async {
+    if (id.isEmpty || _readNoticeIds.contains(id)) return;
+    _readNoticeIds.add(id);
+    await _saveReadNoticeIds();
+    notifyListeners();
+    ParentApiService.markNoticeRead(id).catchError((_) => false);
+  }
+
+  Future<void> markAllNoticesAsRead() async {
+    final unread = notices.where((n) => !_readNoticeIds.contains(n.id)).map((n) => n.id).toList();
+    if (unread.isEmpty) return;
+    _readNoticeIds.addAll(unread);
+    await _saveReadNoticeIds();
+    notifyListeners();
+    ParentApiService.markAllNoticesRead(_currentChild.id).catchError((_) => false);
+  }
+
+  List<Notice> get notices => _childNoticesDb[_currentChild.id] ?? _noticesDb;
   List<ClassUpdate> get classUpdates => _classUpdatesDb[_currentChild.id] ?? [];
   List<Teacher> get teachers => _teachersDb[_currentChild.id] ?? (_teachersDb.values.isNotEmpty ? _teachersDb.values.first : []);
   Attendance get attendance => _attendanceDb[_currentChild.id] ?? (_attendanceDb.values.isNotEmpty ? _attendanceDb.values.first : Attendance(month: 'October 2026', summary: AttendanceSummary(present: 0, absent: 0, holiday: 0, weekend: 0), calendar: {}));

@@ -49,6 +49,26 @@ class ParentApiService {
     throw Exception('Failed to load notices');
   }
 
+  /// Mark notice / broadcast as read
+  static Future<bool> markNoticeRead(String noticeId) async {
+    try {
+      final response = await ApiService.post('/parent/notices/$noticeId/read', {});
+      return response != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Mark all notices as read for a child
+  static Future<bool> markAllNoticesRead(String studentId) async {
+    try {
+      final response = await ApiService.post('/parent/children/$studentId/notices/mark-all-read', {});
+      return response != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Fetch class teacher and subject teachers
   static Future<Map<String, dynamic>> getChildTeachers(String studentId) async {
     final response = await ApiService.get('/parent/children/$studentId/teachers');

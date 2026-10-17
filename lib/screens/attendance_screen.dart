@@ -74,7 +74,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     switch (status) {
       case 'P':
         bgColor = const Color(0xFFE0F7FA);
-        borderColor = const Color(0xFFB2EBF2);
+        borderColor = const Color(0xFF80DEEA);
         break;
       case 'A':
         bgColor = const Color(0xFFFFEBEE);
@@ -379,14 +379,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     final now = DateTime.now();
     final isCurrentMonth = now.year == _selectedYear && now.month == _selectedMonth;
 
-    // Filter absences / special notes for the month log
-    final specialRecords = <Map<String, dynamic>>[];
-    for (int d = 1; d <= daysInMonth; d++) {
+    // Collect all marked attendance days for the month log (newest first)
+    final activityRecords = <Map<String, dynamic>>[];
+    for (int d = daysInMonth; d >= 1; d--) {
       final key = d.toString();
       if (attendance.calendar.containsKey(key)) {
         final dayData = attendance.calendar[key]!;
-        if (dayData.status == 'A' || dayData.status == 'L' || dayData.status == 'HD') {
-          specialRecords.add({
+        if (dayData.status != '-' && dayData.status != 'W') {
+          activityRecords.add({
             'day': d,
             'date': DateTime(_selectedYear, _selectedMonth, d),
             'dayData': dayData,
@@ -778,7 +778,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                  if (status == 'A') ...[
+                                  if (status == 'P') ...[
+                                    const SizedBox(height: 2),
+                                    Container(
+                                      width: 4,
+                                      height: 4,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF00838F),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  ] else if (status == 'A') ...[
                                     const SizedBox(height: 2),
                                     Container(
                                       width: 4,
@@ -795,6 +805,26 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                       height: 4,
                                       decoration: const BoxDecoration(
                                         color: Color(0xFFF57F17),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  ] else if (status == 'HD') ...[
+                                    const SizedBox(height: 2),
+                                    Container(
+                                      width: 4,
+                                      height: 4,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF512DA8),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    ),
+                                  ] else if (status == 'H') ...[
+                                    const SizedBox(height: 2),
+                                    Container(
+                                      width: 4,
+                                      height: 4,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFF1565C0),
                                         shape: BoxShape.circle,
                                       ),
                                     ),
@@ -834,17 +864,28 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               ),
               const SizedBox(height: 12),
 
-              if (specialRecords.isNotEmpty) ...[
+              if (activityRecords.isNotEmpty) ...[
                 ListView.separated(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  itemCount: specialRecords.length,
+                  itemCount: activityRecords.length,
                   separatorBuilder: (context, index) => const SizedBox(height: 8),
                   itemBuilder: (context, idx) {
-                    final item = specialRecords[idx];
+                    final item = activityRecords[idx];
                     final date = item['date'] as DateTime;
                     final dayData = item['dayData'] as AttendanceCalendarDay;
                     final status = dayData.status;
+
+                    IconData statusIcon = LucideIcons.checkCircle2;
+                    if (status == 'A') {
+                      statusIcon = LucideIcons.xCircle;
+                    } else if (status == 'L') {
+                      statusIcon = LucideIcons.clock;
+                    } else if (status == 'HD') {
+                      statusIcon = LucideIcons.pieChart;
+                    } else if (status == 'H') {
+                      statusIcon = LucideIcons.calendar;
+                    }
 
                     return Container(
                       decoration: BoxDecoration(
@@ -862,9 +903,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Icon(
-                              status == 'A'
-                                  ? LucideIcons.xCircle
-                                  : LucideIcons.alertCircle,
+                              statusIcon,
                               color: _getStatusBadgeColor(status),
                               size: 18,
                             ),
@@ -886,7 +925,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                 Text(
                                   dayData.reason.isNotEmpty
                                       ? dayData.reason
-                                      : _getStatusFullName(status),
+                                      : (status == 'P'
+                                          ? 'Attended all scheduled classes'
+                                          : _getStatusFullName(status)),
                                   style: TextStyle(
                                     fontSize: 12,
                                     color: dayData.reason.isNotEmpty

@@ -300,11 +300,11 @@ class FeeHistory {
 
   factory FeeHistory.fromJson(Map<String, dynamic> json) {
     return FeeHistory(
-      id: json['id'] as String,
-      amount: (json['amount'] as num).toDouble(),
-      date: json['date'] as String,
-      reference: json['reference'] as String,
-      method: json['method'] as String,
+      id: json['id'] as String? ?? '',
+      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
+      date: json['date'] as String? ?? '',
+      reference: json['reference'] as String? ?? '',
+      method: json['method'] as String? ?? '',
     );
   }
 
@@ -338,8 +338,8 @@ class Fee {
         ? histJson.map((e) => FeeHistory.fromJson(e as Map<String, dynamic>)).toList()
         : [];
     return Fee(
-      status: json['status'] as String,
-      amount: (json['amount'] as num).toDouble(),
+      status: json['status'] as String? ?? 'Paid',
+      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
       dueDate: json['dueDate'] as String?,
       history: hist,
     );
@@ -363,8 +363,8 @@ class Photo {
 
   factory Photo.fromJson(Map<String, dynamic> json) {
     return Photo(
-      id: json['id'] as String,
-      url: json['url'] as String,
+      id: json['id'] as String? ?? '',
+      url: json['url'] as String? ?? '',
     );
   }
 
@@ -380,16 +380,18 @@ class Album {
   final String id;
   final String title;
   final String coverPhoto;
-  final int photoCount;
+  final int? _photoCount;
   final List<Photo> photos;
 
   Album({
     required this.id,
     required this.title,
     required this.coverPhoto,
-    required this.photoCount,
+    int? photoCount,
     required this.photos,
-  });
+  }) : _photoCount = photoCount ?? photos.length;
+
+  int get photoCount => _photoCount ?? photos.length;
 
   factory Album.fromJson(Map<String, dynamic> json) {
     var photosJson = json['photos'] as List<dynamic>?;
@@ -397,10 +399,10 @@ class Album {
         ? photosJson.map((e) => Photo.fromJson(e as Map<String, dynamic>)).toList()
         : [];
     return Album(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      coverPhoto: json['coverPhoto'] as String,
-      photoCount: json['photoCount'] as int,
+      id: json['id'] as String? ?? '',
+      title: json['title'] as String? ?? '',
+      coverPhoto: json['coverPhoto'] as String? ?? '',
+      photoCount: (json['photoCount'] as num?)?.toInt() ?? pts.length,
       photos: pts,
     );
   }
@@ -537,17 +539,23 @@ class Book {
 }
 
 class AttendanceCalendarDay {
-  final String status; // 'P' | 'A' | 'L' | 'HD' | 'H' | 'W'
-  final String reason;
-  final String notes;
+  final String? _status;
+  final String? _reason;
+  final String? _notes;
   final DateTime? date;
 
   AttendanceCalendarDay({
-    required this.status,
-    required this.reason,
-    this.notes = '',
+    String? status,
+    String? reason,
+    String? notes,
     this.date,
-  });
+  })  : _status = status ?? 'P',
+        _reason = reason ?? '',
+        _notes = notes ?? '';
+
+  String get status => _status ?? 'P';
+  String get reason => _reason ?? '';
+  String get notes => _notes ?? '';
 
   factory AttendanceCalendarDay.fromJson(Map<String, dynamic> json) {
     return AttendanceCalendarDay(
@@ -569,25 +577,49 @@ class AttendanceCalendarDay {
 }
 
 class AttendanceSummary {
-  final int present;
-  final int absent;
-  final int late;
-  final int halfDay;
-  final int holiday;
-  final int weekend;
-  final int totalWorkingDays;
-  final int attendancePercentage;
+  final int? _present;
+  final int? _absent;
+  final int? _late;
+  final int? _halfDay;
+  final int? _holiday;
+  final int? _weekend;
+  final int? _totalWorkingDays;
+  final int? _attendancePercentage;
 
   AttendanceSummary({
-    required this.present,
-    required this.absent,
-    this.late = 0,
-    this.halfDay = 0,
-    required this.holiday,
-    required this.weekend,
-    this.totalWorkingDays = 0,
-    this.attendancePercentage = 100,
-  });
+    int? present,
+    int? absent,
+    int? late,
+    int? halfDay,
+    int? holiday,
+    int? weekend,
+    int? totalWorkingDays,
+    int? attendancePercentage,
+  })  : _present = present ?? 0,
+        _absent = absent ?? 0,
+        _late = late ?? 0,
+        _halfDay = halfDay ?? 0,
+        _holiday = holiday ?? 0,
+        _weekend = weekend ?? 4,
+        _totalWorkingDays = totalWorkingDays ?? ((present ?? 0) + (absent ?? 0) + (late ?? 0) + (halfDay ?? 0)),
+        _attendancePercentage = attendancePercentage ?? 100;
+
+  int get present => _present ?? 0;
+  int get absent => _absent ?? 0;
+  int get late => _late ?? 0;
+  int get halfDay => _halfDay ?? 0;
+  int get holiday => _holiday ?? 0;
+  int get weekend => _weekend ?? 4;
+  int get totalWorkingDays =>
+      _totalWorkingDays ?? (present + absent + late + halfDay);
+  int get attendancePercentage {
+    if (_attendancePercentage != null) return _attendancePercentage;
+    final total = totalWorkingDays;
+    if (total > 0) {
+      return (((present + late + halfDay * 0.5) / total) * 100).round();
+    }
+    return 100;
+  }
 
   factory AttendanceSummary.fromJson(Map<String, dynamic> json) {
     final present = (json['present'] as num?)?.toInt() ?? 0;
@@ -628,19 +660,42 @@ class AttendanceSummary {
 }
 
 class Attendance {
-  final String month;
-  final int monthNumber;
-  final int year;
-  final AttendanceSummary summary;
-  final Map<String, AttendanceCalendarDay> calendar;
+  final String? _month;
+  final int? _monthNumber;
+  final int? _year;
+  final AttendanceSummary? _summary;
+  final Map<String, AttendanceCalendarDay>? _calendar;
 
   Attendance({
-    required this.month,
-    this.monthNumber = 10,
-    this.year = 2026,
-    required this.summary,
-    required this.calendar,
-  });
+    String? month,
+    int? monthNumber,
+    int? year,
+    AttendanceSummary? summary,
+    Map<String, AttendanceCalendarDay>? calendar,
+  })  : _month = month ?? 'October 2026',
+        _monthNumber = monthNumber ?? 10,
+        _year = year ?? 2026,
+        _summary = summary ??
+            AttendanceSummary(
+              present: 0,
+              absent: 0,
+              holiday: 0,
+              weekend: 0,
+            ),
+        _calendar = calendar ?? const {};
+
+  String get month => _month ?? 'October 2026';
+  int get monthNumber => _monthNumber ?? DateTime.now().month;
+  int get year => _year ?? DateTime.now().year;
+  AttendanceSummary get summary =>
+      _summary ??
+      AttendanceSummary(
+        present: 0,
+        absent: 0,
+        holiday: 0,
+        weekend: 0,
+      );
+  Map<String, AttendanceCalendarDay> get calendar => _calendar ?? {};
 
   factory Attendance.fromJson(Map<String, dynamic> json) {
     var calRaw = json['calendar'] as Map<String, dynamic>? ?? {};

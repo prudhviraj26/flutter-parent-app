@@ -520,7 +520,7 @@ class AppState extends ChangeNotifier {
   List<Teacher> get teachers => _teachersDb[_currentChild.id] ?? (_teachersDb.values.isNotEmpty ? _teachersDb.values.first : []);
   Attendance get attendance => _attendanceDb[_currentChild.id] ?? (_attendanceDb.values.isNotEmpty ? _attendanceDb.values.first : Attendance(month: 'October 2026', summary: AttendanceSummary(present: 0, absent: 0, holiday: 0, weekend: 0), calendar: {}));
   List<Event> get events => _eventsDb;
-  Fee get fees => _feesDb[_currentChild.id] ?? _feesDb.values.first;
+  Fee get fees => _feesDb[_currentChild.id] ?? (_feesDb.values.isNotEmpty ? _feesDb.values.first : Fee(status: 'Paid', amount: 0.0, history: []));
   List<Album> get albums => _albumsDb;
   List<Holiday> get holidays => _holidaysDb;
   List<ExamResult> get examResults => _examResultsDb;

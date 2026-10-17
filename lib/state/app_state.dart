@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 import '../models/models.dart';
 import '../services/api_service.dart';
 import '../services/parent_api_service.dart';
@@ -33,9 +34,12 @@ class AppState extends ChangeNotifier {
   List<ExamResult> _examResultsDb = [];
   Map<String, List<Book>> _booksDb = {};
 
+  bool _mustChangePassword = false;
+
   // Getters
   String get language => _language;
   bool get loggedIn => _loggedIn;
+  bool get mustChangePassword => _mustChangePassword;
   String? get mobile => _mobile;
   Child get currentChild => _currentChild;
   List<Child> get children => _children;
@@ -123,17 +127,32 @@ class AppState extends ChangeNotifier {
 
       if (profile['children'] != null && (profile['children'] as List).isNotEmpty) {
         final List childrenList = profile['children'];
-        _children = childrenList.map<Child>((c) => Child(
-          id: c['id'].toString(),
-          name: c['fullName'] ?? '${c['firstName']} ${c['lastName']}',
-          grade: '${c['className']} ${c['sectionName']}'.trim(),
-          enrollmentNo: c['grNumber']?.toString() ?? '1001',
-          dob: '15-08-2017',
-          gender: c['gender'] ?? 'Male',
-          apaarId: 'AP-2021-VIS-${c['grNumber'] ?? c['id']}',
-          penNo: 'PEN-MH-${c['grNumber'] ?? c['id']}',
-          studentId: c['id'].toString(),
-        )).toList();
+        _children = childrenList.map<Child>((c) {
+          String dobFormatted = '—';
+          if (c['dateOfBirth'] != null) {
+            final s = c['dateOfBirth'].toString();
+            if (s.contains('-') && s.length >= 10) {
+              final parts = s.substring(0, 10).split('-');
+              if (parts.length == 3) {
+                dobFormatted = '${parts[2]}-${parts[1]}-${parts[0]}';
+              }
+            } else {
+              dobFormatted = s;
+            }
+          }
+
+          return Child(
+            id: c['id'].toString(),
+            name: c['fullName'] ?? '${c['firstName']} ${c['lastName']}',
+            grade: '${c['className']} ${c['sectionName']}'.trim(),
+            enrollmentNo: c['grNumber']?.toString() ?? '1001',
+            dob: dobFormatted,
+            gender: c['gender'] ?? 'Male',
+            apaarId: c['apaarId']?.toString() ?? '—',
+            penNo: c['penNumber']?.toString() ?? '—',
+            studentId: c['id'].toString(),
+          );
+        }).toList();
 
         final savedChildId = _prefs?.getString('veyho_active_child_id');
         final idx = _children.indexWhere((c) => c.id == savedChildId);
@@ -162,34 +181,7 @@ class AppState extends ChangeNotifier {
       try {
         final attData = results[0] as Map<String, dynamic>;
         if (attData['summary'] != null) {
-          final summary = attData['summary'];
-          final records = (attData['records'] as List<dynamic>? ?? []);
-
-          final Map<String, AttendanceCalendarDay> calMap = {};
-          for (var r in records) {
-            if (r['date'] != null) {
-              final dateStr = r['date'].toString();
-              final dayNum = dateStr.split('-').last.replaceAll(RegExp(r'^0'), '');
-              final s = (r['status'] ?? '').toString().toLowerCase();
-              String charStatus = 'P';
-              if (s == 'absent') {
-                charStatus = 'A';
-              } else if (s == 'school_holiday' || s == 'holiday') {
-                charStatus = 'H';
-              }
-              calMap[dayNum] = AttendanceCalendarDay(status: charStatus, reason: r['reason']?.toString() ?? '');
-            }
-          }
-
-          final present = summary['present'] ?? 0;
-          final absent = summary['absent'] ?? 0;
-          final holiday = summary['holiday'] ?? 0;
-
-          _attendanceDb[studentId] = Attendance(
-            month: 'Current Month',
-            summary: AttendanceSummary(present: present, absent: absent, holiday: holiday, weekend: 4),
-            calendar: calMap,
-          );
+          _attendanceDb[studentId] = _parseAttendanceData(attData);
         }
       } catch (e) {
         debugPrint('Parse attendance note: $e');
@@ -309,10 +301,12 @@ class AppState extends ChangeNotifier {
 
         _loggedIn = true;
         _mobile = mobileNumber;
+        _mustChangePassword = res['mustChangePassword'] as bool? ?? false;
 
         final userData = {
           'loggedIn': true,
           'mobile': mobileNumber,
+          'mustChangePassword': _mustChangePassword,
         };
         await _prefs?.setString('veyho_parent_user', json.encode(userData));
 
@@ -323,17 +317,32 @@ class AppState extends ChangeNotifier {
           if (res['user']['children'] != null) {
             final List childrenList = res['user']['children'];
             if (childrenList.isNotEmpty) {
-              _children = childrenList.map<Child>((c) => Child(
-                id: c['id'].toString(),
-                name: c['fullName'] ?? '${c['firstName']} ${c['lastName']}',
-                grade: '${c['className']} ${c['sectionName']}'.trim(),
-                enrollmentNo: c['grNumber']?.toString() ?? '1001',
-                dob: '15-08-2017',
-                gender: c['gender'] ?? 'Male',
-                apaarId: 'AP-2021-VIS-${c['grNumber'] ?? c['id']}',
-                penNo: 'PEN-MH-${c['grNumber'] ?? c['id']}',
-                studentId: c['id'].toString(),
-              )).toList();
+              _children = childrenList.map<Child>((c) {
+                String dobFormatted = '—';
+                if (c['dateOfBirth'] != null) {
+                  final s = c['dateOfBirth'].toString();
+                  if (s.contains('-') && s.length >= 10) {
+                    final parts = s.substring(0, 10).split('-');
+                    if (parts.length == 3) {
+                      dobFormatted = '${parts[2]}-${parts[1]}-${parts[0]}';
+                    }
+                  } else {
+                    dobFormatted = s;
+                  }
+                }
+
+                return Child(
+                  id: c['id'].toString(),
+                  name: c['fullName'] ?? '${c['firstName']} ${c['lastName']}',
+                  grade: '${c['className']} ${c['sectionName']}'.trim(),
+                  enrollmentNo: c['grNumber']?.toString() ?? '1001',
+                  dob: dobFormatted,
+                  gender: c['gender'] ?? 'Male',
+                  apaarId: c['apaarId']?.toString() ?? '—',
+                  penNo: c['penNumber']?.toString() ?? '—',
+                  studentId: c['id'].toString(),
+                );
+              }).toList();
               _currentChild = _children[0];
             }
           }
@@ -346,17 +355,44 @@ class AppState extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('API Login note: $e');
+      rethrow;
     }
 
-    _loggedIn = true;
-    _mobile = mobileNumber;
-    final userData = {
-      'loggedIn': true,
-      'mobile': mobileNumber,
-    };
-    await _prefs?.setString('veyho_parent_user', json.encode(userData));
-    notifyListeners();
-    return true;
+    return false;
+  }
+
+  // Change Password
+  Future<Map<String, dynamic>> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final res = await ApiService.post('/auth/change-password', {
+        'currentPassword': currentPassword,
+        'newPassword': newPassword,
+      });
+
+      if (res != null) {
+        _mustChangePassword = false;
+        final userJson = _prefs?.getString('veyho_parent_user');
+        if (userJson != null) {
+          try {
+            final Map<String, dynamic> userData = json.decode(userJson);
+            userData['mustChangePassword'] = false;
+            await _prefs?.setString('veyho_parent_user', json.encode(userData));
+          } catch (_) {}
+        }
+        notifyListeners();
+        return {'success': true};
+      }
+    } catch (e) {
+      debugPrint('Change password error: $e');
+      return {
+        'success': false,
+        'error': e.toString().replaceAll('Exception: ', ''),
+      };
+    }
+    return {'success': false, 'error': 'Failed to change password'};
   }
 
   Future<void> logout() async {
@@ -379,10 +415,110 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool _isAttendanceLoading = false;
+  bool get isAttendanceLoading => _isAttendanceLoading;
+
+  Attendance _parseAttendanceData(Map<String, dynamic> attData) {
+    final summary = attData['summary'] as Map<String, dynamic>? ?? {};
+    final records = (attData['records'] as List<dynamic>? ?? []);
+    final targetMonth = (attData['month'] as num?)?.toInt() ?? DateTime.now().month;
+    final targetYear = (attData['year'] as num?)?.toInt() ?? DateTime.now().year;
+
+    final Map<String, AttendanceCalendarDay> calMap = {};
+
+    // Mark Sundays as Weekend by default
+    final daysInMonth = DateTime(targetYear, targetMonth + 1, 0).day;
+    int weekendCount = 0;
+    for (int d = 1; d <= daysInMonth; d++) {
+      final dt = DateTime(targetYear, targetMonth, d);
+      if (dt.weekday == DateTime.sunday) {
+        calMap[d.toString()] = AttendanceCalendarDay(
+          status: 'W',
+          reason: 'Sunday',
+          date: dt,
+        );
+        weekendCount++;
+      }
+    }
+
+    // Map attendance records from the server
+    for (var r in records) {
+      if (r['date'] != null) {
+        final dateStr = r['date'].toString();
+        final dt = DateTime.tryParse(dateStr);
+        final dayNum = dateStr.split('-').last.replaceAll(RegExp(r'^0'), '');
+        final s = (r['status'] ?? '').toString().toLowerCase();
+
+        String charStatus = 'P';
+        if (s == 'absent') {
+          charStatus = 'A';
+        } else if (s == 'late') {
+          charStatus = 'L';
+        } else if (s == 'half_day' || s == 'halfday') {
+          charStatus = 'HD';
+        } else if (s == 'school_holiday' || s == 'holiday') {
+          charStatus = 'H';
+        }
+
+        calMap[dayNum] = AttendanceCalendarDay(
+          status: charStatus,
+          reason: r['reason']?.toString() ?? '',
+          notes: r['notes']?.toString() ?? '',
+          date: dt,
+        );
+      }
+    }
+
+    final present = (summary['present'] as num?)?.toInt() ?? 0;
+    final absent = (summary['absent'] as num?)?.toInt() ?? 0;
+    final late = (summary['late'] as num?)?.toInt() ?? 0;
+    final halfDay = (summary['halfDay'] as num?)?.toInt() ?? 0;
+    final holiday = (summary['holiday'] as num?)?.toInt() ?? 0;
+    final totalWorkingDays = (summary['totalWorkingDays'] as num?)?.toInt() ?? (present + absent + late + halfDay);
+    final percentage = (summary['attendancePercentage'] as num?)?.toInt() ?? (
+      totalWorkingDays > 0 ? (((present + late + halfDay * 0.5) / totalWorkingDays) * 100).round() : 100
+    );
+
+    final monthName = DateFormat('MMMM yyyy').format(DateTime(targetYear, targetMonth));
+
+    return Attendance(
+      month: monthName,
+      monthNumber: targetMonth,
+      year: targetYear,
+      summary: AttendanceSummary(
+        present: present,
+        absent: absent,
+        late: late,
+        halfDay: halfDay,
+        holiday: holiday,
+        weekend: weekendCount,
+        totalWorkingDays: totalWorkingDays,
+        attendancePercentage: percentage,
+      ),
+      calendar: calMap,
+    );
+  }
+
+  Future<void> fetchAttendanceForMonth(String studentId, int month, int year) async {
+    _isAttendanceLoading = true;
+    notifyListeners();
+    try {
+      final attData = await ParentApiService.getChildAttendance(studentId, month: month, year: year);
+      if (attData['summary'] != null) {
+        _attendanceDb[studentId] = _parseAttendanceData(attData);
+      }
+    } catch (e) {
+      debugPrint('Error fetching attendance for month: $e');
+    } finally {
+      _isAttendanceLoading = false;
+      notifyListeners();
+    }
+  }
+
   List<Notice> get notices => _noticesDb;
   List<ClassUpdate> get classUpdates => _classUpdatesDb[_currentChild.id] ?? [];
   List<Teacher> get teachers => _teachersDb[_currentChild.id] ?? (_teachersDb.values.isNotEmpty ? _teachersDb.values.first : []);
-  Attendance get attendance => _attendanceDb[_currentChild.id] ?? _attendanceDb.values.first;
+  Attendance get attendance => _attendanceDb[_currentChild.id] ?? (_attendanceDb.values.isNotEmpty ? _attendanceDb.values.first : Attendance(month: 'October 2026', summary: AttendanceSummary(present: 0, absent: 0, holiday: 0, weekend: 0), calendar: {}));
   List<Event> get events => _eventsDb;
   Fee get fees => _feesDb[_currentChild.id] ?? _feesDb.values.first;
   List<Album> get albums => _albumsDb;

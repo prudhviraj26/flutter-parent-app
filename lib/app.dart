@@ -4,7 +4,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'state/app_state.dart';
 import 'constants/colors.dart';
 
-// Screens
+import 'screens/mandatory_change_password_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
@@ -55,6 +55,7 @@ class ParentApp extends StatelessWidget {
           routes: {
             '/': (context) => const SplashScreen(),
             '/login': (context) => const LoginScreen(),
+            '/set-new-password': (context) => const MandatoryChangePasswordScreen(),
             '/home': (context) => const HomeScreen(),
             '/all-sections': (context) => const AllSectionsScreen(),
             '/school-notice': (context) => const NoticeScreen(),

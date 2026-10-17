@@ -537,15 +537,24 @@ class Book {
 }
 
 class AttendanceCalendarDay {
-  final String status; // 'P' | 'A' | 'H' | 'W'
+  final String status; // 'P' | 'A' | 'L' | 'HD' | 'H' | 'W'
   final String reason;
+  final String notes;
+  final DateTime? date;
 
-  AttendanceCalendarDay({required this.status, required this.reason});
+  AttendanceCalendarDay({
+    required this.status,
+    required this.reason,
+    this.notes = '',
+    this.date,
+  });
 
   factory AttendanceCalendarDay.fromJson(Map<String, dynamic> json) {
     return AttendanceCalendarDay(
-      status: json['status'] as String,
+      status: json['status'] as String? ?? 'P',
       reason: json['reason'] as String? ?? '',
+      notes: json['notes'] as String? ?? '',
+      date: json['date'] != null ? DateTime.tryParse(json['date'].toString()) : null,
     );
   }
 
@@ -553,6 +562,8 @@ class AttendanceCalendarDay {
     return {
       'status': status,
       'reason': reason,
+      'notes': notes,
+      if (date != null) 'date': date!.toIso8601String(),
     };
   }
 }
@@ -560,22 +571,45 @@ class AttendanceCalendarDay {
 class AttendanceSummary {
   final int present;
   final int absent;
+  final int late;
+  final int halfDay;
   final int holiday;
   final int weekend;
+  final int totalWorkingDays;
+  final int attendancePercentage;
 
   AttendanceSummary({
     required this.present,
     required this.absent,
+    this.late = 0,
+    this.halfDay = 0,
     required this.holiday,
     required this.weekend,
+    this.totalWorkingDays = 0,
+    this.attendancePercentage = 100,
   });
 
   factory AttendanceSummary.fromJson(Map<String, dynamic> json) {
+    final present = (json['present'] as num?)?.toInt() ?? 0;
+    final absent = (json['absent'] as num?)?.toInt() ?? 0;
+    final late = (json['late'] as num?)?.toInt() ?? 0;
+    final halfDay = (json['halfDay'] as num?)?.toInt() ?? 0;
+    final holiday = (json['holiday'] as num?)?.toInt() ?? 0;
+    final weekend = (json['weekend'] as num?)?.toInt() ?? 4;
+    final totalWorkingDays = (json['totalWorkingDays'] as num?)?.toInt() ?? (present + absent + late + halfDay);
+    final percentage = (json['attendancePercentage'] as num?)?.toInt() ?? (
+      totalWorkingDays > 0 ? (((present + late + halfDay * 0.5) / totalWorkingDays) * 100).round() : 100
+    );
+
     return AttendanceSummary(
-      present: json['present'] as int,
-      absent: json['absent'] as int,
-      holiday: json['holiday'] as int,
-      weekend: json['weekend'] as int,
+      present: present,
+      absent: absent,
+      late: late,
+      halfDay: halfDay,
+      holiday: holiday,
+      weekend: weekend,
+      totalWorkingDays: totalWorkingDays,
+      attendancePercentage: percentage,
     );
   }
 
@@ -583,33 +617,45 @@ class AttendanceSummary {
     return {
       'present': present,
       'absent': absent,
+      'late': late,
+      'halfDay': halfDay,
       'holiday': holiday,
       'weekend': weekend,
+      'totalWorkingDays': totalWorkingDays,
+      'attendancePercentage': attendancePercentage,
     };
   }
 }
 
 class Attendance {
   final String month;
+  final int monthNumber;
+  final int year;
   final AttendanceSummary summary;
   final Map<String, AttendanceCalendarDay> calendar;
 
   Attendance({
     required this.month,
+    this.monthNumber = 10,
+    this.year = 2026,
     required this.summary,
     required this.calendar,
   });
 
   factory Attendance.fromJson(Map<String, dynamic> json) {
-    var calRaw = json['calendar'] as Map<String, dynamic>;
+    var calRaw = json['calendar'] as Map<String, dynamic>? ?? {};
     Map<String, AttendanceCalendarDay> calMap = {};
     calRaw.forEach((day, data) {
-      calMap[day] = AttendanceCalendarDay.fromJson(data as Map<String, dynamic>);
+      if (data is Map<String, dynamic>) {
+        calMap[day] = AttendanceCalendarDay.fromJson(data);
+      }
     });
 
     return Attendance(
-      month: json['month'] as String,
-      summary: AttendanceSummary.fromJson(json['summary'] as Map<String, dynamic>),
+      month: json['month'] as String? ?? 'Current Month',
+      monthNumber: (json['monthNumber'] as num?)?.toInt() ?? DateTime.now().month,
+      year: (json['year'] as num?)?.toInt() ?? DateTime.now().year,
+      summary: AttendanceSummary.fromJson(json['summary'] as Map<String, dynamic>? ?? {}),
       calendar: calMap,
     );
   }
@@ -621,6 +667,8 @@ class Attendance {
     });
     return {
       'month': month,
+      'monthNumber': monthNumber,
+      'year': year,
       'summary': summary.toJson(),
       'calendar': calMap,
     };

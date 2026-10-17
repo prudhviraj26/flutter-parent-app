@@ -52,14 +52,41 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     final appState = Provider.of<AppState>(context, listen: false);
-    final success = await appState.login(mobile, password);
+    try {
+      final success = await appState.login(mobile, password);
 
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-      if (success) {
-        Navigator.pushReplacementNamed(context, '/home');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        if (success) {
+          if (appState.mustChangePassword) {
+            Navigator.pushReplacementNamed(context, '/set-new-password');
+          } else {
+            Navigator.pushReplacementNamed(context, '/home');
+          }
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Invalid mobile number or password'),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       }
     }
   }
@@ -241,7 +268,40 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   // Forgot Password Link
                   TextButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      showDialog(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          title: const Row(
+                            children: [
+                              Icon(LucideIcons.circleHelp, color: AppColors.primaryTeal),
+                              SizedBox(width: 8),
+                              Text(
+                                'Forgot Password',
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          content: const Text(
+                            'Please contact your school office to reset your parent password.\n\nOnce reset by the school administrator, your password will revert to the default fixed format:\n\n• First 4 letters of your child\'s name\n• Followed by Date of Birth in DDMMYYYY\n\nExample: mana15082017\n\nYou will then be prompted to set a new password upon logging in.',
+                            style: TextStyle(fontSize: 13, height: 1.5, color: AppColors.textMain),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx),
+                              child: const Text(
+                                'OK',
+                                style: TextStyle(
+                                  color: AppColors.primaryTeal,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                     child: Text(
                       'forgotPassword'.tr(),
                       style: const TextStyle(

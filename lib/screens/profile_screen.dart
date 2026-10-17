@@ -298,19 +298,54 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   final _oldPassController = TextEditingController();
   final _newPassController = TextEditingController();
   final _confirmPassController = TextEditingController();
+  bool _isLoading = false;
 
-  void _savePassword() {
-    if (_oldPassController.text.isEmpty || _newPassController.text.isEmpty) return;
-    if (_newPassController.text != _confirmPassController.text) {
+  Future<void> _savePassword() async {
+    final current = _oldPassController.text.trim();
+    final newPass = _newPassController.text.trim();
+    final confirm = _confirmPassController.text.trim();
+
+    if (current.isEmpty || newPass.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill all fields'), backgroundColor: AppColors.error),
+      );
+      return;
+    }
+    if (newPass.length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New password must be at least 8 characters'), backgroundColor: AppColors.error),
+      );
+      return;
+    }
+    if (newPass != confirm) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('passwordsDoNotMatch'.tr()), backgroundColor: AppColors.error),
       );
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('passwordUpdatedSuccessfully'.tr()), backgroundColor: AppColors.primaryTeal),
-    );
-    Navigator.pop(context);
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    final appState = Provider.of<AppState>(context, listen: false);
+    final res = await appState.changePassword(currentPassword: current, newPassword: newPass);
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+      if (res['success'] == true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('passwordUpdatedSuccessfully'.tr()), backgroundColor: const Color(0xFF2E7D32)),
+        );
+        Navigator.pop(context);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res['error']?.toString() ?? 'Failed to update password'), backgroundColor: AppColors.error),
+        );
+      }
+    }
   }
 
   @override
@@ -384,13 +419,19 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
               ),
               const SizedBox(height: 24),
               ElevatedButton(
-                onPressed: _savePassword,
+                onPressed: _isLoading ? null : _savePassword,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.secondaryOrange,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
-                child: Text('save'.tr(), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                      )
+                    : Text('save'.tr(), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
               ),
             ],
           ),

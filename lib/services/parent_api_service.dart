@@ -86,4 +86,13 @@ class ParentApiService {
     }
     throw Exception('Failed to load holidays');
   }
+
+  /// Fetch school & class events for student
+  static Future<List<dynamic>> getChildEvents(String studentId) async {
+    final response = await ApiService.get('/parent/children/$studentId/events');
+    if (response is List) {
+      return response;
+    }
+    return [];
+  }
 }

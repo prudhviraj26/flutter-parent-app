@@ -27,7 +27,9 @@ class AppState extends ChangeNotifier {
   Map<String, List<ClassUpdate>> _classUpdatesDb = {};
   Map<String, List<Teacher>> _teachersDb = {};
   Map<String, Attendance> _attendanceDb = {};
-  List<Event> _eventsDb = [];
+  Map<String, List<Event>> _eventsDb = {};
+  bool _isEventsLoading = false;
+  bool get isEventsLoading => _isEventsLoading;
   Map<String, Fee> _feesDb = {};
   List<Album> _albumsDb = [];
   List<Holiday> _holidaysDb = [];
@@ -175,6 +177,7 @@ class AppState extends ChangeNotifier {
         ParentApiService.getChildFees(studentId),
         ParentApiService.getChildNotices(studentId),
         ParentApiService.getChildTeachers(studentId),
+        ParentApiService.getChildEvents(studentId),
       ]);
 
       // 1. Attendance
@@ -263,6 +266,16 @@ class AppState extends ChangeNotifier {
         }
       } catch (e) {
         debugPrint('Parse teachers note: $e');
+      }
+
+      // 5. Events
+      try {
+        final eventsRaw = results[4] as List<dynamic>? ?? [];
+        _eventsDb[studentId] = eventsRaw
+            .map((e) => Event.fromJson(e as Map<String, dynamic>))
+            .toList();
+      } catch (e) {
+        debugPrint('Parse events note: $e');
       }
 
       notifyListeners();
@@ -515,11 +528,28 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<void> fetchEvents(String studentId) async {
+    _isEventsLoading = true;
+    notifyListeners();
+    try {
+      final list = await ParentApiService.getChildEvents(studentId);
+      final eventsList = list
+          .map((e) => Event.fromJson(e as Map<String, dynamic>))
+          .toList();
+      _eventsDb[studentId] = eventsList;
+    } catch (e) {
+      debugPrint('Error fetching events: $e');
+    } finally {
+      _isEventsLoading = false;
+      notifyListeners();
+    }
+  }
+
   List<Notice> get notices => _noticesDb;
   List<ClassUpdate> get classUpdates => _classUpdatesDb[_currentChild.id] ?? [];
   List<Teacher> get teachers => _teachersDb[_currentChild.id] ?? (_teachersDb.values.isNotEmpty ? _teachersDb.values.first : []);
   Attendance get attendance => _attendanceDb[_currentChild.id] ?? (_attendanceDb.values.isNotEmpty ? _attendanceDb.values.first : Attendance(month: 'October 2026', summary: AttendanceSummary(present: 0, absent: 0, holiday: 0, weekend: 0), calendar: {}));
-  List<Event> get events => _eventsDb;
+  List<Event> get events => _eventsDb[_currentChild.id] ?? (_eventsDb.values.isNotEmpty ? _eventsDb.values.first : []);
   Fee get fees => _feesDb[_currentChild.id] ?? (_feesDb.values.isNotEmpty ? _feesDb.values.first : Fee(status: 'Paid', amount: 0.0, history: []));
   List<Album> get albums => _albumsDb;
   List<Holiday> get holidays => _holidaysDb;
@@ -882,24 +912,30 @@ class AppState extends ChangeNotifier {
     };
 
     // 6. Events
-    _eventsDb = [
-      Event(
-        id: '1',
-        title: 'Parent-Teacher Meeting',
-        date: '2026-05-15',
-        time: '10:00 AM - 2:00 PM',
-        location: 'School Auditorium',
-        description: 'Quarterly Parent-Teacher Meeting to discuss student progress and academic performance.',
-      ),
-      Event(
-        id: '2',
-        title: 'Annual Sports Day',
-        date: '2026-05-20',
-        time: '8:00 AM - 4:00 PM',
-        location: 'School Sports Ground',
-        description: 'Annual Sports Day with various athletic events and competitions. All students to participate.',
-      ),
-    ];
+    _eventsDb = {
+      'aarav': [
+        Event(
+          id: '1',
+          title: 'Parent-Teacher Meeting',
+          date: '15 May 2026',
+          time: '10:00 AM - 2:00 PM',
+          location: 'School Auditorium',
+          description: 'Quarterly Parent-Teacher Meeting to discuss student progress and academic performance.',
+          category: 'ACADEMIC',
+          scope: 'SCHOOL',
+        ),
+        Event(
+          id: '2',
+          title: 'Annual Sports Day',
+          date: '20 May 2026',
+          time: '8:00 AM - 4:00 PM',
+          location: 'School Sports Ground',
+          description: 'Annual Sports Day with various athletic events and competitions. All students to participate.',
+          category: 'SPORTS',
+          scope: 'SCHOOL',
+        ),
+      ],
+    };
 
     // 7. Fees
     _feesDb = {

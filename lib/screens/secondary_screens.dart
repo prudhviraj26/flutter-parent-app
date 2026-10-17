@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -507,109 +508,504 @@ class ExamDetailsScreen extends StatelessWidget {
 }
 
 // 9. Events Screen
-class EventsScreen extends StatelessWidget {
+// 9. Events Screen
+class EventsScreen extends StatefulWidget {
   const EventsScreen({super.key});
+
+  @override
+  State<EventsScreen> createState() => _EventsScreenState();
+}
+
+class _EventsScreenState extends State<EventsScreen> {
+  String _selectedCategory = 'ALL';
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadEvents();
+    });
+  }
+
+  Future<void> _loadEvents() async {
+    final appState = Provider.of<AppState>(context, listen: false);
+    await appState.fetchEvents(appState.currentChild.id);
+    if (mounted) setState(() {});
+  }
+
+  Color _getCategoryBg(String cat) {
+    switch (cat.toUpperCase()) {
+      case 'CULTURAL':
+        return const Color(0xFFF3E8FF);
+      case 'ACADEMIC':
+        return const Color(0xFFE0F2FE);
+      case 'SPORTS':
+        return const Color(0xFFDCFCE7);
+      default:
+        return const Color(0xFFE0F2F1);
+    }
+  }
+
+  Color _getCategoryText(String cat) {
+    switch (cat.toUpperCase()) {
+      case 'CULTURAL':
+        return const Color(0xFF7E22CE);
+      case 'ACADEMIC':
+        return const Color(0xFF0369A1);
+      case 'SPORTS':
+        return const Color(0xFF15803D);
+      default:
+        return const Color(0xFF00695C);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
-    final eventsList = appState.events;
+    final allEvents = appState.events;
+    final currentChild = appState.currentChild;
+    final childAvatar = appState.childAvatars[currentChild.id];
+    final isLoading = appState.isEventsLoading;
+
+    // Filter events based on category
+    final filteredEvents = _selectedCategory == 'ALL'
+        ? allEvents
+        : allEvents.where((e) => e.category.toUpperCase() == _selectedCategory).toList();
+
+    const categories = ['ALL', 'CULTURAL', 'ACADEMIC', 'SPORTS', 'GENERAL'];
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('events'.tr(), style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold)),
+        title: Text(
+          'events'.tr(),
+          style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            icon: isLoading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryTeal),
+                  )
+                : const Icon(LucideIcons.refreshCw, color: AppColors.textMain, size: 20),
+            onPressed: isLoading ? null : _loadEvents,
+            tooltip: 'Refresh Events',
+          ),
+        ],
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(color: AppColors.border, height: 1),
+        ),
       ),
-      body: eventsList.isEmpty
-          ? Center(child: Text('noEvents'.tr(), style: const TextStyle(color: AppColors.textMuted)))
-          : ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-              itemCount: eventsList.length,
-              itemBuilder: (context, idx) {
-                final event = eventsList[idx];
-                DateTime? parsedDate;
-                try {
-                  parsedDate = DateTime.parse(event.date);
-                } catch (_) {}
-                final dateStr = parsedDate != null
-                    ? DateFormat.yMMMd().format(parsedDate)
-                    : event.date;
-
-                return Card(
+      body: RefreshIndicator(
+        onRefresh: _loadEvents,
+        color: AppColors.primaryTeal,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Child Badge Header
+              Container(
+                decoration: BoxDecoration(
                   color: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.pushNamed(
-                        context,
-                        '/events/detail',
-                        arguments: event,
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(20),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.border),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 3,
+                      offset: Offset(0, 1),
+                    )
+                  ],
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                margin: const EdgeInsets.only(bottom: 14),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.primaryTeal,
+                      ),
+                      alignment: Alignment.center,
+                      child: childAvatar != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(19),
+                              child: Image.memory(
+                                base64Decode(childAvatar),
+                                width: 38,
+                                height: 38,
+                                fit: BoxFit.cover,
+                              ),
+                            )
+                          : Text(
+                              currentChild.name.isNotEmpty
+                                  ? currentChild.name.substring(0, 1).toUpperCase()
+                                  : 'S',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: AppColors.primaryTeal.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(14),
+                          Text(
+                            currentChild.name,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textMain,
                             ),
-                            alignment: Alignment.center,
-                            child: const Icon(LucideIcons.calendar, color: AppColors.primaryTeal, size: 20),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  event.title,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 15,
-                                    color: AppColors.textMain,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  '$dateStr • ${event.time}',
-                                  style: const TextStyle(
-                                    color: AppColors.textMuted,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  event.description,
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: AppColors.textMuted,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ],
+                          Text(
+                            currentChild.grade.isNotEmpty ? currentChild.grade : 'Student',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textMuted,
                             ),
                           ),
                         ],
                       ),
                     ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE0F2FE),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${allEvents.length} Events',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0369A1),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Category Filter Pills
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.only(bottom: 14),
+                child: Row(
+                  children: categories.map((cat) {
+                    final isSelected = _selectedCategory == cat;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: FilterChip(
+                        label: Text(
+                          cat == 'ALL' ? 'All Events' : cat.substring(0, 1) + cat.substring(1).toLowerCase(),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            color: isSelected ? Colors.white : AppColors.textMain,
+                          ),
+                        ),
+                        selected: isSelected,
+                        onSelected: (_) {
+                          setState(() {
+                            _selectedCategory = cat;
+                          });
+                        },
+                        backgroundColor: Colors.white,
+                        selectedColor: AppColors.primaryTeal,
+                        checkmarkColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(
+                            color: isSelected ? AppColors.primaryTeal : AppColors.border,
+                          ),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+
+              // Events List
+              if (isLoading && allEvents.isEmpty) ...[
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 60),
+                  child: Center(
+                    child: CircularProgressIndicator(color: AppColors.primaryTeal),
                   ),
-                );
-              },
-            ),
+                ),
+              ] else if (filteredEvents.isEmpty) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryTeal.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(LucideIcons.calendar, size: 28, color: AppColors.primaryTeal),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'No Events Found',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textMain,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        _selectedCategory == 'ALL'
+                            ? 'There are no upcoming events or celebrations scheduled right now.'
+                            : 'No events found under the selected category.',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: AppColors.textMuted,
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else ...[
+                ListView.separated(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: filteredEvents.length,
+                  separatorBuilder: (context, index) => const SizedBox(height: 12),
+                  itemBuilder: (context, idx) {
+                    final event = filteredEvents[idx];
+
+                    DateTime? parsedDate;
+                    if (event.startDate.isNotEmpty) {
+                      parsedDate = DateTime.tryParse(event.startDate);
+                    }
+                    if (parsedDate == null && event.date.isNotEmpty) {
+                      parsedDate = DateTime.tryParse(event.date);
+                    }
+
+                    final monthLabel = parsedDate != null
+                        ? DateFormat('MMM').format(parsedDate).toUpperCase()
+                        : 'EVT';
+                    final dayLabel = parsedDate != null ? DateFormat('d').format(parsedDate) : '•';
+                    final weekDayLabel = parsedDate != null ? DateFormat('EEE').format(parsedDate) : '';
+
+                    final catBg = _getCategoryBg(event.category);
+                    final catColor = _getCategoryText(event.category);
+
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(color: AppColors.border),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          )
+                        ],
+                      ),
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () {
+                            Navigator.pushNamed(
+                              context,
+                              '/events/detail',
+                              arguments: event,
+                            );
+                          },
+                          borderRadius: BorderRadius.circular(18),
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Date Badge Box
+                                Container(
+                                  width: 58,
+                                  padding: const EdgeInsets.symmetric(vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF0FDF4),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: const Color(0xFFBBF7D0)),
+                                  ),
+                                  child: Column(
+                                    children: [
+                                      Text(
+                                        monthLabel,
+                                        style: const TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w900,
+                                          color: Color(0xFF15803D),
+                                          letterSpacing: 0.5,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        dayLabel,
+                                        style: const TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w900,
+                                          color: Color(0xFF166534),
+                                        ),
+                                      ),
+                                      if (weekDayLabel.isNotEmpty) ...[
+                                        const SizedBox(height: 1),
+                                        Text(
+                                          weekDayLabel,
+                                          style: const TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF15803D),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+
+                                // Event Details
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Category & Scope Badges
+                                      Wrap(
+                                        spacing: 6,
+                                        runSpacing: 4,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: catBg,
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              event.category,
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: catColor,
+                                                letterSpacing: 0.3,
+                                              ),
+                                            ),
+                                          ),
+                                          if (event.scope.isNotEmpty && event.scope != 'SCHOOL')
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.grey[100],
+                                                borderRadius: BorderRadius.circular(6),
+                                              ),
+                                              child: Text(
+                                                event.scope == 'CLASS' ? 'Class Event' : 'Section Event',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.w600,
+                                                  color: Colors.grey[700],
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 6),
+
+                                      // Event Title
+                                      Text(
+                                        event.title,
+                                        style: const TextStyle(
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                          color: AppColors.textMain,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+
+                                      // Time Row
+                                      Row(
+                                        children: [
+                                          const Icon(LucideIcons.clock, size: 13, color: AppColors.textMuted),
+                                          const SizedBox(width: 5),
+                                          Text(
+                                            event.time,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: AppColors.textMuted,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 3),
+
+                                      // Location Row
+                                      Row(
+                                        children: [
+                                          const Icon(LucideIcons.mapPin, size: 13, color: AppColors.textMuted),
+                                          const SizedBox(width: 5),
+                                          Expanded(
+                                            child: Text(
+                                              event.location,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                color: AppColors.textMuted,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                const Icon(LucideIcons.chevronRight, size: 18, color: AppColors.textMuted),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -617,6 +1013,32 @@ class EventsScreen extends StatelessWidget {
 // 10. Event Detail Screen
 class EventDetailScreen extends StatelessWidget {
   const EventDetailScreen({super.key});
+
+  Color _getCategoryBg(String cat) {
+    switch (cat.toUpperCase()) {
+      case 'CULTURAL':
+        return const Color(0xFFF3E8FF);
+      case 'ACADEMIC':
+        return const Color(0xFFE0F2FE);
+      case 'SPORTS':
+        return const Color(0xFFDCFCE7);
+      default:
+        return const Color(0xFFE0F2F1);
+    }
+  }
+
+  Color _getCategoryText(String cat) {
+    switch (cat.toUpperCase()) {
+      case 'CULTURAL':
+        return const Color(0xFF7E22CE);
+      case 'ACADEMIC':
+        return const Color(0xFF0369A1);
+      case 'SPORTS':
+        return const Color(0xFF15803D);
+      default:
+        return const Color(0xFF00695C);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -630,118 +1052,305 @@ class EventDetailScreen extends StatelessWidget {
     }
 
     DateTime? parsedDate;
-    try {
-      parsedDate = DateTime.parse(event.date);
-    } catch (_) {}
-    final dateStr = parsedDate != null
-        ? DateFormat('EEEE, MMMM d, y').format(parsedDate)
+    if (event.startDate.isNotEmpty) {
+      parsedDate = DateTime.tryParse(event.startDate);
+    }
+    if (parsedDate == null && event.date.isNotEmpty) {
+      parsedDate = DateTime.tryParse(event.date);
+    }
+    final fullDateStr = parsedDate != null
+        ? DateFormat('EEEE, d MMMM yyyy').format(parsedDate)
         : event.date;
+
+    final catBg = _getCategoryBg(event.category);
+    final catColor = _getCategoryText(event.category);
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('eventDetails'.tr(), style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold)),
+        title: Text(
+          'eventDetails'.tr(),
+          style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
           onPressed: () => Navigator.pop(context),
         ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(color: AppColors.border, height: 1),
+        ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: const [
-              BoxShadow(
-                color: Colors.black12,
-                blurRadius: 4,
-                offset: Offset(0, 2),
-              )
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Hero Card
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: AppColors.border),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  )
+                ],
+              ),
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Badges Row
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: catBg,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          event.category,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: catColor,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          event.scope == 'SCHOOL'
+                              ? 'School Wide'
+                              : (event.scope == 'CLASS' ? 'Class Event' : 'Section Event'),
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey[700],
+                          ),
+                        ),
+                      ),
+                      if (event.attendanceImpact == 'NO_ATTENDANCE_REQUIRED')
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF3C7),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'No Attendance Required',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFB45309),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  // Title
+                  Text(
+                    event.title,
+                    style: const TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.textMain,
+                      height: 1.25,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Metadata Card
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.border),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  )
+                ],
+              ),
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                children: [
+                  _buildDetailRow(
+                    icon: LucideIcons.calendar,
+                    iconColor: AppColors.primaryTeal,
+                    title: 'Date',
+                    value: fullDateStr,
+                  ),
+                  const Divider(height: 20, color: AppColors.border),
+                  _buildDetailRow(
+                    icon: LucideIcons.clock,
+                    iconColor: const Color(0xFF0284C7),
+                    title: 'Time',
+                    value: event.time,
+                  ),
+                  const Divider(height: 20, color: AppColors.border),
+                  _buildDetailRow(
+                    icon: LucideIcons.mapPin,
+                    iconColor: const Color(0xFFE11D48),
+                    title: 'Location',
+                    value: event.location,
+                  ),
+                  if (event.attendanceImpact.isNotEmpty) ...[
+                    const Divider(height: 20, color: AppColors.border),
+                    _buildDetailRow(
+                      icon: LucideIcons.userCheck,
+                      iconColor: const Color(0xFF059669),
+                      title: 'Attendance Policy',
+                      value: event.attendanceImpact == 'NO_ATTENDANCE_REQUIRED'
+                          ? 'Optional / No Attendance Required'
+                          : 'Regular Attendance Marked',
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Description Card
+            if (event.description.isNotEmpty) ...[
+              Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.border),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    )
+                  ],
+                ),
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(LucideIcons.fileText, size: 16, color: AppColors.textMuted),
+                        const SizedBox(width: 8),
+                        Text(
+                          'description'.tr().toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.textMuted,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      event.description,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: AppColors.textMain,
+                        height: 1.6,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
             ],
+
+            // Close Button
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryTeal,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  elevation: 0,
+                ),
+                child: const Text(
+                  'Back to Events',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailRow({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String value,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: iconColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
           ),
-          padding: const EdgeInsets.all(24),
+          child: Icon(icon, color: iconColor, size: 18),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                event.title,
+                title,
                 style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textMain,
-                ),
-              ),
-              const SizedBox(height: 20),
-              
-              // Metadata fields
-              Row(
-                children: [
-                  const Icon(LucideIcons.calendar, color: AppColors.primaryTeal, size: 20),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      dateStr,
-                      style: const TextStyle(color: AppColors.textMain, fontSize: 14, fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Icon(LucideIcons.clock, color: AppColors.primaryTeal, size: 20),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      event.time,
-                      style: const TextStyle(color: AppColors.textMain, fontSize: 14, fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  const Icon(LucideIcons.mapPin, color: AppColors.primaryTeal, size: 20),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      event.location,
-                      style: const TextStyle(color: AppColors.textMain, fontSize: 14, fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                ],
-              ),
-              
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 20),
-                child: Divider(color: AppColors.border, height: 1),
-              ),
-              
-              Text(
-                'description'.tr(),
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
                   color: AppColors.textMuted,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 2),
               Text(
-                event.description,
+                value,
                 style: const TextStyle(
-                  color: AppColors.textMain,
                   fontSize: 14,
-                  height: 1.6,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textMain,
                 ),
               ),
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 }

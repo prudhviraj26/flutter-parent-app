@@ -29,6 +29,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final classUpdates = appState.classUpdates;
     final fees = appState.fees;
     final attendance = appState.attendance;
+    final events = appState.events;
 
     final latestNotice = notices.isNotEmpty ? notices[0] : null;
     final pendingHomework = classUpdates.where((u) => u.type == 'Homework').length;
@@ -334,7 +335,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: AppColors.primaryTeal,
                           icon: LucideIcons.calendar,
                           title: 'events'.tr(),
-                          subtitle: '2 ${'upcoming'.tr()}',
+                          subtitle: '${events.length} ${'upcoming'.tr()}',
                         ),
                       ),
                     ],

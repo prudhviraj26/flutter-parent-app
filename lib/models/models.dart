@@ -1,3 +1,5 @@
+import 'package:intl/intl.dart';
+
 class Child {
   final String id;
   final String name;
@@ -250,24 +252,77 @@ class Event {
   final String time;
   final String location;
   final String description;
+  final String startDate;
+  final String endDate;
+  final String? startTime;
+  final String? endTime;
+  final bool isAllDay;
+  final String category; // 'CULTURAL' | 'ACADEMIC' | 'SPORTS' | 'GENERAL'
+  final String scope; // 'SCHOOL' | 'CLASS' | 'SECTION'
+  final String attendanceImpact;
 
   Event({
     required this.id,
     required this.title,
     required this.date,
     required this.time,
-    required this.location,
-    required this.description,
+    this.location = 'School Campus',
+    this.description = '',
+    this.startDate = '',
+    this.endDate = '',
+    this.startTime,
+    this.endTime,
+    this.isAllDay = false,
+    this.category = 'GENERAL',
+    this.scope = 'SCHOOL',
+    this.attendanceImpact = 'REGULAR_ATTENDANCE',
   });
 
   factory Event.fromJson(Map<String, dynamic> json) {
+    final start = json['startDate']?.toString() ?? json['date']?.toString() ?? '';
+    final end = json['endDate']?.toString() ?? start;
+    final isAllDay = json['isAllDay'] as bool? ?? false;
+    final sTime = json['startTime']?.toString();
+    final eTime = json['endTime']?.toString();
+
+    // Format human-friendly time string
+    String formattedTime = json['time']?.toString() ?? '';
+    if (formattedTime.isEmpty) {
+      if (isAllDay) {
+        formattedTime = 'All Day';
+      } else if (sTime != null && sTime.isNotEmpty) {
+        formattedTime = eTime != null && eTime.isNotEmpty ? '$sTime - $eTime' : sTime;
+      } else {
+        formattedTime = 'All Day';
+      }
+    }
+
+    // Format human-friendly date string
+    String formattedDate = json['date']?.toString() ?? '';
+    if (formattedDate.isEmpty && start.isNotEmpty) {
+      try {
+        final dt = DateTime.parse(start);
+        formattedDate = DateFormat('EEEE, d MMMM yyyy').format(dt);
+      } catch (_) {
+        formattedDate = start;
+      }
+    }
+
     return Event(
-      id: json['id'] as String,
-      title: json['title'] as String,
-      date: json['date'] as String,
-      time: json['time'] as String,
-      location: json['location'] as String,
-      description: json['description'] as String,
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ?? 'Event',
+      date: formattedDate.isNotEmpty ? formattedDate : 'Upcoming',
+      time: formattedTime,
+      location: json['location']?.toString() ?? 'School Campus',
+      description: json['description']?.toString() ?? '',
+      startDate: start,
+      endDate: end,
+      startTime: sTime,
+      endTime: eTime,
+      isAllDay: isAllDay,
+      category: json['category']?.toString() ?? 'GENERAL',
+      scope: json['scope']?.toString() ?? 'SCHOOL',
+      attendanceImpact: json['attendanceImpact']?.toString() ?? 'REGULAR_ATTENDANCE',
     );
   }
 
@@ -279,6 +334,14 @@ class Event {
       'time': time,
       'location': location,
       'description': description,
+      'startDate': startDate,
+      'endDate': endDate,
+      'startTime': startTime,
+      'endTime': endTime,
+      'isAllDay': isAllDay,
+      'category': category,
+      'scope': scope,
+      'attendanceImpact': attendanceImpact,
     };
   }
 }

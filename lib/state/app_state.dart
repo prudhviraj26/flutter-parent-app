@@ -231,20 +231,18 @@ class AppState extends ChangeNotifier {
 
       // 3. Notices
       try {
-        final noticesList = results[2] as List<dynamic>;
-        if (noticesList.isNotEmpty) {
-          final parsed = noticesList
-              .map<Notice>((n) => Notice.fromJson(n as Map<String, dynamic>))
-              .toList();
-          _childNoticesDb[studentId] = parsed;
-          _noticesDb = parsed;
-          for (final n in parsed) {
-            if (n.isRead) {
-              _readNoticeIds.add(n.id);
-            }
+        final noticesList = results[2] as List<dynamic>? ?? [];
+        final parsed = noticesList
+            .map<Notice>((n) => Notice.fromJson(n as Map<String, dynamic>))
+            .toList();
+        _childNoticesDb[studentId] = parsed;
+        _noticesDb = parsed;
+        for (final n in parsed) {
+          if (n.isRead) {
+            _readNoticeIds.add(n.id);
           }
-          await _saveReadNoticeIds();
         }
+        await _saveReadNoticeIds();
       } catch (e) {
         debugPrint('Parse notice note: $e');
       }

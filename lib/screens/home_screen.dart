@@ -199,10 +199,16 @@ class _HomeScreenState extends State<HomeScreen> {
 
           // Body Items
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-              child: Column(
-                children: [
+            child: RefreshIndicator(
+              color: AppColors.primaryTeal,
+              onRefresh: () async {
+                await appState.fetchLiveChildData(currentChild.id);
+              },
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+                child: Column(
+                  children: [
                   // 1. Notice Board Gradient Container
                   if (latestNotice != null)
                     Container(
@@ -406,6 +412,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ],
+              ),
               ),
             ),
           ),

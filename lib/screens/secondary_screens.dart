@@ -41,14 +41,19 @@ class MyTeachersScreen extends StatelessWidget {
             child: ListTile(
               leading: CircleAvatar(
                 backgroundColor: AppColors.primaryTeal.withValues(alpha: 0.1),
-                child: Text(item.name.split(' ').last.substring(0, 1), style: const TextStyle(color: AppColors.primaryTeal, fontWeight: FontWeight.bold)),
+                child: Text(
+                  item.name.trim().isNotEmpty
+                      ? item.name.trim().split(' ').last[0].toUpperCase()
+                      : 'T',
+                  style: const TextStyle(color: AppColors.primaryTeal, fontWeight: FontWeight.bold),
+                ),
               ),
               title: Text(item.name, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textMain)),
-              subtitle: Text('${item.subject} • ${item.teacherClass}', style: const TextStyle(color: AppColors.textMuted)),
+              subtitle: Text('${item.displaySubjects} • ${item.teacherClass}', style: const TextStyle(color: AppColors.textMuted)),
               trailing: item.isClassTeacher
                   ? Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(color: AppColors.primaryTeal, borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(color: const Color(0xFF1F4E78), borderRadius: BorderRadius.circular(12)),
                       child: Text('classTeacher'.tr(), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
                     )
                   : null,

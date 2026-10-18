@@ -270,27 +270,61 @@ class AppState extends ChangeNotifier {
       try {
         final teacherData = results[3] as Map<String, dynamic>;
         List<Teacher> teacherList = [];
-        if (teacherData['classTeacher'] != null) {
-          final ct = teacherData['classTeacher'];
-          teacherList.add(Teacher(
-            id: ct['id'].toString(),
-            name: ct['name'].toString(),
-            subject: 'Class Teacher',
-            teacherClass: _currentChild.grade,
-            isClassTeacher: true,
-          ));
-        }
-        if (teacherData['subjectTeachers'] != null) {
-          for (var st in teacherData['subjectTeachers']) {
-            teacherList.add(Teacher(
-              id: st['id'].toString(),
-              name: st['name'].toString(),
-              subject: st['subject']?.toString() ?? 'Subject',
-              teacherClass: _currentChild.grade,
-              isClassTeacher: false,
-            ));
+
+        if (teacherData['teachers'] != null && (teacherData['teachers'] as List).isNotEmpty) {
+          teacherList = (teacherData['teachers'] as List)
+              .map((t) => Teacher.fromJson(t as Map<String, dynamic>))
+              .toList();
+        } else {
+          // Deduplicate and consolidate by teacher id
+          final Map<String, Map<String, dynamic>> consolidated = {};
+
+          if (teacherData['classTeacher'] != null) {
+            final ct = teacherData['classTeacher'];
+            final String id = ct['id'].toString();
+            consolidated[id] = {
+              'id': id,
+              'name': ct['name'].toString(),
+              'isClassTeacher': true,
+              'subjects': <String>[],
+              'class': _currentChild.grade,
+            };
           }
+
+          if (teacherData['subjectTeachers'] != null) {
+            for (var st in teacherData['subjectTeachers']) {
+              final String id = st['id'].toString();
+              final String subj = (st['subject'] ?? '').toString().trim();
+              if (consolidated.containsKey(id)) {
+                if (subj.isNotEmpty && !(consolidated[id]!['subjects'] as List<String>).contains(subj)) {
+                  (consolidated[id]!['subjects'] as List<String>).add(subj);
+                }
+              } else {
+                consolidated[id] = {
+                  'id': id,
+                  'name': st['name'].toString(),
+                  'isClassTeacher': false,
+                  'subjects': subj.isNotEmpty ? <String>[subj] : <String>[],
+                  'class': _currentChild.grade,
+                };
+              }
+            }
+          }
+
+          teacherList = consolidated.values.map((item) {
+            final subs = item['subjects'] as List<String>;
+            final bool isCT = item['isClassTeacher'] as bool;
+            return Teacher(
+              id: item['id'] as String,
+              name: item['name'] as String,
+              subject: subs.isNotEmpty ? subs.join(', ') : (isCT ? 'Class Teacher' : 'Subject Teacher'),
+              subjects: subs,
+              teacherClass: item['class'] as String,
+              isClassTeacher: isCT,
+            );
+          }).toList();
         }
+
         if (teacherList.isNotEmpty) {
           _teachersDb[studentId] = teacherList;
         }

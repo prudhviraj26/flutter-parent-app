@@ -98,7 +98,7 @@ class TalkToTeacherScreen extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  '${teacher.subject} • ${teacher.teacherClass}',
+                                  '${teacher.displaySubjects} • ${teacher.teacherClass}',
                                   style: const TextStyle(
                                     color: AppColors.textMuted,
                                     fontSize: 12,

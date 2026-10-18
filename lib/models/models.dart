@@ -88,6 +88,7 @@ class Teacher {
   final String id;
   final String name;
   final String subject;
+  final List<String> subjects;
   final String teacherClass; // mapped from class
   final bool isClassTeacher;
   String? lastMessage;
@@ -97,22 +98,44 @@ class Teacher {
     required this.id,
     required this.name,
     required this.subject,
+    this.subjects = const [],
     required this.teacherClass,
     this.isClassTeacher = false,
     this.lastMessage,
     this.messages = const [],
   });
 
+  String get displaySubjects {
+    if (subjects.isNotEmpty) {
+      return subjects.join(', ');
+    }
+    if (subject.isNotEmpty && subject != 'Subject' && subject != 'Class Teacher') {
+      return subject;
+    }
+    if (isClassTeacher) {
+      return 'Class Teacher';
+    }
+    return 'Subject Teacher';
+  }
+
   factory Teacher.fromJson(Map<String, dynamic> json) {
     var msgsJson = json['messages'] as List<dynamic>?;
     List<Message> msgs = msgsJson != null
         ? msgsJson.map((e) => Message.fromJson(e as Map<String, dynamic>)).toList()
         : [];
+    List<String> subs = [];
+    if (json['subjects'] != null) {
+      subs = (json['subjects'] as List<dynamic>).map((e) => e.toString()).toList();
+    } else if (json['subject'] != null && json['subject'].toString().isNotEmpty) {
+      subs = [json['subject'].toString()];
+    }
+
     return Teacher(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      subject: json['subject'] as String,
-      teacherClass: json['class'] as String,
+      id: (json['id'] ?? '').toString(),
+      name: (json['name'] ?? '').toString(),
+      subject: subs.isNotEmpty ? subs.join(', ') : (json['subject'] as String? ?? ''),
+      subjects: subs,
+      teacherClass: (json['class'] ?? json['teacherClass'] ?? '').toString(),
       isClassTeacher: json['isClassTeacher'] as bool? ?? false,
       lastMessage: json['lastMessage'] as String?,
       messages: msgs,
@@ -124,6 +147,7 @@ class Teacher {
       'id': id,
       'name': name,
       'subject': subject,
+      'subjects': subjects,
       'class': teacherClass,
       'isClassTeacher': isClassTeacher,
       'lastMessage': lastMessage,

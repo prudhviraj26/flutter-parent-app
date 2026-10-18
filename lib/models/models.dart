@@ -622,6 +622,12 @@ class AcademicYearItem {
     );
   }
 
+  String get formattedDuration {
+    final startFmt = DateFormat('MMM yyyy').format(startDate);
+    final endFmt = DateFormat('MMM yyyy').format(endDate);
+    return '$startFmt – $endFmt';
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,

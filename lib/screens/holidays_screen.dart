@@ -179,18 +179,66 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
     final selectedYearId = appState.selectedAcademicYearId;
     final isLoading = appState.isHolidaysLoading;
 
-    // Group holidays by year-month (e.g. "2026-04") sorted chronologically
+    // Current selected academic year item or fallback
+    AcademicYearItem? selectedYear;
+    if (academicYears.isNotEmpty) {
+      selectedYear = academicYears.firstWhere(
+        (y) => y.id == selectedYearId,
+        orElse: () => academicYears.first,
+      );
+    }
+
+    // 1. Filter holidays strictly within the school's configured academic year start and end dates
+    List<Holiday> activeHolidays = holidays;
+    if (selectedYear != null) {
+      final start = DateTime(
+        selectedYear.startDate.year,
+        selectedYear.startDate.month,
+        selectedYear.startDate.day,
+      );
+      final end = DateTime(
+        selectedYear.endDate.year,
+        selectedYear.endDate.month,
+        selectedYear.endDate.day,
+        23,
+        59,
+        59,
+      );
+      activeHolidays = holidays.where((h) {
+        return !h.fullDate.isBefore(start) && !h.fullDate.isAfter(end);
+      }).toList();
+    }
+
+    // 2. Generate academic year month sequence based on the school's configured start and end months
+    final List<String> academicMonthTimeline = [];
+    if (selectedYear != null) {
+      DateTime runner = DateTime(selectedYear.startDate.year, selectedYear.startDate.month, 1);
+      final endLimit = DateTime(selectedYear.endDate.year, selectedYear.endDate.month, 1);
+      while (!runner.isAfter(endLimit)) {
+        academicMonthTimeline.add(DateFormat('yyyy-MM').format(runner));
+        runner = DateTime(runner.year, runner.month + 1, 1);
+      }
+    }
+
+    // 3. Group active holidays by year-month (e.g. "2026-06", "2026-07")
     final Map<String, List<Holiday>> holidaysByMonth = {};
-    for (final h in holidays) {
+    for (final h in activeHolidays) {
       final key = DateFormat('yyyy-MM').format(h.fullDate);
       holidaysByMonth.putIfAbsent(key, () => []).add(h);
     }
 
-    // Sort entries chronologically by year-month
+    // 4. Sort month groups strictly following the school's academic year timeline
     final sortedMonthEntries = holidaysByMonth.entries.toList()
-      ..sort((a, b) => a.key.compareTo(b.key));
+      ..sort((a, b) {
+        final idxA = academicMonthTimeline.indexOf(a.key);
+        final idxB = academicMonthTimeline.indexOf(b.key);
+        if (idxA != -1 && idxB != -1) return idxA.compareTo(idxB);
+        if (idxA != -1) return -1;
+        if (idxB != -1) return 1;
+        return a.key.compareTo(b.key);
+      });
 
-    // Sort holidays within each month by date
+    // 5. Sort holidays within each month chronologically
     for (final entry in sortedMonthEntries) {
       entry.value.sort((a, b) => a.fullDate.compareTo(b.fullDate));
     }
@@ -246,8 +294,9 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
               context: context,
               appState: appState,
               academicYears: academicYears,
+              selectedYear: selectedYear,
               selectedYearId: selectedYearId,
-              holidayCount: holidays.length,
+              holidayCount: activeHolidays.length,
               monthKeys: monthKeys,
               allExpanded: allExpanded,
             ),
@@ -303,20 +352,12 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
     required BuildContext context,
     required AppState appState,
     required List<AcademicYearItem> academicYears,
+    required AcademicYearItem? selectedYear,
     required String? selectedYearId,
     required int holidayCount,
     required List<String> monthKeys,
     required bool allExpanded,
   }) {
-    // Current selected academic year item or fallback
-    AcademicYearItem? selectedYear;
-    if (academicYears.isNotEmpty) {
-      selectedYear = academicYears.firstWhere(
-        (y) => y.id == selectedYearId,
-        orElse: () => academicYears.first,
-      );
-    }
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -467,6 +508,38 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
                 ),
             ],
           ),
+
+          // Academic Year Duration Chip (from web portal settings)
+          if (selectedYear != null) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    LucideIcons.calendarDays,
+                    size: 12,
+                    color: Color(0xFF64748B),
+                  ),
+                  const SizedBox(width: 5),
+                  Text(
+                    'Academic Period: ${selectedYear.formattedDuration}',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF475569),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

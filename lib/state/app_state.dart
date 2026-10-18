@@ -362,13 +362,11 @@ class AppState extends ChangeNotifier {
       }
 
       // 1. Fetch academic years
-      if (_academicYears.isEmpty) {
-        final yearsRaw = await ParentApiService.getAcademicYears();
-        if (yearsRaw.isNotEmpty) {
-          _academicYears = yearsRaw
-              .map((y) => AcademicYearItem.fromJson(y as Map<String, dynamic>))
-              .toList();
-        }
+      final yearsRaw = await ParentApiService.getAcademicYears();
+      if (yearsRaw.isNotEmpty) {
+        _academicYears = yearsRaw
+            .map((y) => AcademicYearItem.fromJson(y as Map<String, dynamic>))
+            .toList();
       }
 
       // Determine target academic year

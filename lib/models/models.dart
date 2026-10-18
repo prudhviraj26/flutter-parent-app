@@ -920,3 +920,85 @@ class SchoolConfig {
     required this.logo,
   });
 }
+
+class HealthRecord {
+  final String studentId;
+  final String fullName;
+  final String bloodGroup;
+  final String allergies;
+  final String chronicConditions;
+  final String ongoingMedications;
+  final String emergencyContactName;
+  final String emergencyContactRelation;
+  final String emergencyContactPhone;
+  final String doctorName;
+  final String doctorPhone;
+  final String notes;
+
+  HealthRecord({
+    required this.studentId,
+    this.fullName = '',
+    this.bloodGroup = 'NA',
+    this.allergies = 'NA',
+    this.chronicConditions = 'NA',
+    this.ongoingMedications = 'NA',
+    this.emergencyContactName = 'NA',
+    this.emergencyContactRelation = 'NA',
+    this.emergencyContactPhone = 'NA',
+    this.doctorName = 'NA',
+    this.doctorPhone = 'NA',
+    this.notes = 'NA',
+  });
+
+  factory HealthRecord.fromJson(Map<String, dynamic> json) {
+    String sanitize(dynamic val) {
+      if (val == null) return 'NA';
+      final s = val.toString().trim();
+      if (s.isEmpty ||
+          s == '—' ||
+          s.toLowerCase() == 'none reported' ||
+          s.toLowerCase() == 'not provided' ||
+          s.toLowerCase() == 'n/a') {
+        return 'NA';
+      }
+      return s;
+    }
+
+    return HealthRecord(
+      studentId: (json['studentId'] ?? json['id'] ?? '').toString(),
+      fullName: (json['fullName'] ?? '').toString(),
+      bloodGroup: sanitize(json['bloodGroup']),
+      allergies: sanitize(json['allergies']),
+      chronicConditions: sanitize(json['chronicConditions'] ?? json['medicalConditions']),
+      ongoingMedications: sanitize(json['ongoingMedications']),
+      emergencyContactName: sanitize(json['emergencyContactName']),
+      emergencyContactRelation: sanitize(json['emergencyContactRelation']),
+      emergencyContactPhone: sanitize(json['emergencyContactPhone']),
+      doctorName: sanitize(json['doctorName']),
+      doctorPhone: sanitize(json['doctorPhone']),
+      notes: sanitize(json['notes']),
+    );
+  }
+
+  factory HealthRecord.empty(String studentId) {
+    return HealthRecord(studentId: studentId);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'studentId': studentId,
+      'fullName': fullName,
+      'bloodGroup': bloodGroup,
+      'allergies': allergies,
+      'chronicConditions': chronicConditions,
+      'ongoingMedications': ongoingMedications,
+      'emergencyContactName': emergencyContactName,
+      'emergencyContactRelation': emergencyContactRelation,
+      'emergencyContactPhone': emergencyContactPhone,
+      'doctorName': doctorName,
+      'doctorPhone': doctorPhone,
+      'notes': notes,
+    };
+  }
+}
+

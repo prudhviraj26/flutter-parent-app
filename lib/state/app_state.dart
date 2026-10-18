@@ -37,6 +37,11 @@ class AppState extends ChangeNotifier {
   Map<String, List<Event>> _eventsDb = {};
   bool _isEventsLoading = false;
   bool get isEventsLoading => _isEventsLoading;
+  final Map<String, HealthRecord> _healthRecordsDb = {};
+  bool _isHealthLoading = false;
+  bool get isHealthLoading => _isHealthLoading;
+  HealthRecord getChildHealthRecord(String studentId) =>
+      _healthRecordsDb[studentId] ?? HealthRecord.empty(studentId);
   Map<String, Fee> _feesDb = {};
   List<Album> _albumsDb = [];
   List<Holiday> _holidaysDb = [];
@@ -153,6 +158,11 @@ class AppState extends ChangeNotifier {
             }
           }
 
+          if (c['healthRecord'] != null && c['healthRecord'] is Map<String, dynamic>) {
+            _healthRecordsDb[c['id'].toString()] =
+                HealthRecord.fromJson(c['healthRecord'] as Map<String, dynamic>);
+          }
+
           return Child(
             id: c['id'].toString(),
             name: c['fullName'] ?? '${c['firstName']} ${c['lastName']}',
@@ -188,6 +198,7 @@ class AppState extends ChangeNotifier {
         ParentApiService.getChildNotices(studentId),
         ParentApiService.getChildTeachers(studentId),
         ParentApiService.getChildEvents(studentId),
+        ParentApiService.getChildHealth(studentId).catchError((_) => <String, dynamic>{}),
       ]);
 
       // 1. Attendance
@@ -289,9 +300,41 @@ class AppState extends ChangeNotifier {
         debugPrint('Parse events note: $e');
       }
 
+      // 6. Health Record
+      try {
+        final healthRaw = results[5] as Map<String, dynamic>? ?? {};
+        if (healthRaw.isNotEmpty) {
+          _healthRecordsDb[studentId] = HealthRecord.fromJson(healthRaw);
+        }
+      } catch (e) {
+        debugPrint('Parse health record note: $e');
+      }
+
       notifyListeners();
     } catch (e) {
       debugPrint('Live child data fetch note: $e');
+    }
+  }
+
+  /// Explicitly refresh health record for child
+  Future<void> fetchChildHealth(String studentId, {bool silent = false}) async {
+    try {
+      if (!silent) {
+        _isHealthLoading = true;
+        notifyListeners();
+      }
+      final data = await ParentApiService.getChildHealth(studentId);
+      _healthRecordsDb[studentId] = HealthRecord.fromJson(data);
+    } catch (e) {
+      debugPrint('Error fetching child health: $e');
+      if (!_healthRecordsDb.containsKey(studentId)) {
+        _healthRecordsDb[studentId] = HealthRecord.empty(studentId);
+      }
+    } finally {
+      if (!silent) {
+        _isHealthLoading = false;
+      }
+      notifyListeners();
     }
   }
 

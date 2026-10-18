@@ -115,4 +115,14 @@ class ParentApiService {
     }
     return [];
   }
+
+  /// Fetch medical / health records for student
+  static Future<Map<String, dynamic>> getChildHealth(String studentId) async {
+    final response = await ApiService.get('/parent/children/$studentId/health');
+    if (response is Map<String, dynamic>) {
+      return response;
+    }
+    throw Exception('Failed to load health records');
+  }
 }
+

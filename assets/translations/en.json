@@ -290,5 +290,23 @@
   "aboutUs_tagline": "POWERING DIGITAL OPERATIONS",
   "aboutUs_desc1": "Veyho Technologies is a premier SaaS product company dedicated to transforming school operations and communication. We empower educational institutions with enterprise-grade cloud ecosystems that unify teachers, parents, administrators, and students in one seamless, real-time platform.",
   "aboutUs_desc2": "Built with modern, high-speed architectures, our flagship Veyho School Suite automates daily roll calls, real-time parent-teacher connects, fee updates, dynamic announcements, and duty diaries—enabling educators to focus on what matters most: inspiring young minds.",
-  "aboutUs_address": "Veyho Technologies, 5th Floor, Cerebrum IT Park, Kalyani Nagar, Pune, Maharashtra 411014"
-}
+  "aboutUs_address": "Veyho Technologies, 5th Floor, Cerebrum IT Park, Kalyani Nagar, Pune, Maharashtra 411014",
+  "healthOverview": "Health Overview",
+  "allergies": "Allergies",
+  "medicalConditions": "Medical Conditions",
+  "ongoingMedications": "Ongoing Medications",
+  "contactPerson": "Contact Person",
+  "relationship": "Relationship",
+  "emergencyPhone": "Emergency Phone",
+  "familyDoctor": "Family Doctor",
+  "doctorName": "Doctor / Clinic Name",
+  "doctorPhone": "Doctor Phone",
+  "medicalNotes": "Special Medical Notes",
+  "healthInfoNotice": "Please keep this information up to date to ensure student safety and appropriate care.",
+  "emergencyReference": "Emergency reference",
+  "foodDrugEnv": "Food / drug / environmental",
+  "longTermConditions": "Long-term conditions",
+  "regularPrescriptions": "Regular prescriptions",
+  "primaryUrgentContact": "Primary contact in case of an urgent medical situation.",
+  "routineDoctorReference": "Physician or clinic details for routine reference."
+}

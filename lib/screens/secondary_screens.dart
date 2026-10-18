@@ -6,6 +6,7 @@ import 'package:easy_localization/easy_localization.dart';
 import '../state/app_state.dart';
 import '../models/models.dart';
 import '../constants/colors.dart';
+export 'health_records_screen.dart';
 
 // 1. Holidays Screen
 class HolidaysScreen extends StatelessWidget {
@@ -116,65 +117,8 @@ class MyTeachersScreen extends StatelessWidget {
   }
 }
 
-// 3. Health Records Screen
-class HealthRecordsScreen extends StatelessWidget {
-  const HealthRecordsScreen({super.key});
+// 3. Health Records Screen is now fully implemented in lib/screens/health_records_screen.dart
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text('healthRecords'.tr(), style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        child: Container(
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24)),
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  const Icon(LucideIcons.heartPulse, color: AppColors.error, size: 28),
-                  const SizedBox(width: 12),
-                  Text('studentHealthReport'.tr(), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textMain)),
-                ],
-              ),
-              const SizedBox(height: 24),
-              _buildInfoRow('bloodGroup'.tr(), 'O+'),
-              const Divider(color: AppColors.border, height: 24),
-              _buildInfoRow('height'.tr(), '134 cm'),
-              const Divider(color: AppColors.border, height: 24),
-              _buildInfoRow('weight'.tr(), '28 kg'),
-              const Divider(color: AppColors.border, height: 24),
-              _buildInfoRow('medicalConditions'.tr(), 'none'.tr()),
-              const Divider(color: AppColors.border, height: 24),
-              _buildInfoRow('vaccinationStatus'.tr(), 'fullyVaccinated'.tr()),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 13, fontWeight: FontWeight.w500)),
-        Text(value, style: const TextStyle(color: AppColors.textMain, fontSize: 14, fontWeight: FontWeight.bold)),
-      ],
-    );
-  }
-}
 
 // 4. Library Screen
 class LibraryScreen extends StatelessWidget {

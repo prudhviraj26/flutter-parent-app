@@ -98,9 +98,26 @@ class ParentApiService {
     throw Exception('Failed to send message');
   }
 
-  /// Fetch school holidays
-  static Future<List<dynamic>> getHolidays() async {
-    final response = await ApiService.get('/parent/holidays');
+  /// Fetch academic years for school
+  static Future<List<dynamic>> getAcademicYears() async {
+    try {
+      final response = await ApiService.get('/parent/academic-years');
+      if (response is List) {
+        return response;
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Fetch school holidays calendar
+  static Future<List<dynamic>> getHolidays({String? academicYearId}) async {
+    String endpoint = '/parent/holidays';
+    if (academicYearId != null && academicYearId.isNotEmpty) {
+      endpoint += '?academicYearId=$academicYearId';
+    }
+    final response = await ApiService.get(endpoint);
     if (response is List) {
       return response;
     }

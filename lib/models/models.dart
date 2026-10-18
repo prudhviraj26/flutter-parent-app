@@ -597,13 +597,52 @@ class Album {
   }
 }
 
+class AcademicYearItem {
+  final String id;
+  final String name;
+  final DateTime startDate;
+  final DateTime endDate;
+  final bool isCurrent;
+
+  AcademicYearItem({
+    required this.id,
+    required this.name,
+    required this.startDate,
+    required this.endDate,
+    required this.isCurrent,
+  });
+
+  factory AcademicYearItem.fromJson(Map<String, dynamic> json) {
+    return AcademicYearItem(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? '',
+      startDate: DateTime.tryParse(json['startDate']?.toString() ?? '') ?? DateTime.now(),
+      endDate: DateTime.tryParse(json['endDate']?.toString() ?? '') ?? DateTime.now(),
+      isCurrent: json['isCurrent'] == true,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'startDate': startDate.toIso8601String(),
+      'endDate': endDate.toIso8601String(),
+      'isCurrent': isCurrent,
+    };
+  }
+}
+
 class Holiday {
   final String id;
   final String date;
   final String day;
   final String month;
   final String title;
-  final String type; // 'National' | 'Festival' | 'School'
+  final String type; // 'National' | 'Festival' | 'Gazetted' | 'Bank Holiday' | 'School'
+  final String academicYearId;
+  final String? description;
+  final DateTime fullDate;
 
   Holiday({
     required this.id,
@@ -612,16 +651,36 @@ class Holiday {
     required this.month,
     required this.title,
     required this.type,
-  });
+    this.academicYearId = '',
+    this.description,
+    DateTime? fullDate,
+  }) : fullDate = fullDate ?? DateTime.tryParse(date) ?? DateTime.now();
 
   factory Holiday.fromJson(Map<String, dynamic> json) {
+    final rawDate = (json['date'] ?? '').toString();
+    DateTime parsedDt;
+    if (rawDate.contains('-')) {
+      parsedDt = DateTime.tryParse(rawDate) ?? DateTime.now();
+    } else {
+      parsedDt = DateTime.now();
+    }
+
+    final dayName = json['day']?.toString() ?? DateFormat('EEEE').format(parsedDt);
+    final monthShort = json['month']?.toString() ?? DateFormat('MMM').format(parsedDt);
+    final dayNum = rawDate.contains('-')
+        ? DateFormat('dd').format(parsedDt)
+        : (json['date']?.toString() ?? '01');
+
     return Holiday(
-      id: json['id'] as String,
-      date: json['date'] as String,
-      day: json['day'] as String,
-      month: json['month'] as String,
-      title: json['title'] as String,
-      type: json['type'] as String,
+      id: (json['id'] ?? '').toString(),
+      date: dayNum,
+      day: dayName,
+      month: monthShort,
+      title: (json['name'] ?? json['title'] ?? '').toString(),
+      type: (json['type'] ?? 'School').toString(),
+      academicYearId: (json['academicYearId'] ?? '').toString(),
+      description: json['description']?.toString(),
+      fullDate: parsedDt,
     );
   }
 
@@ -633,9 +692,13 @@ class Holiday {
       'month': month,
       'title': title,
       'type': type,
+      'academicYearId': academicYearId,
+      'description': description,
+      'fullDate': fullDate.toIso8601String(),
     };
   }
 }
+
 
 class ExamResult {
   final String id;

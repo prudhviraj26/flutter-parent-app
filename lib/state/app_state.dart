@@ -45,6 +45,14 @@ class AppState extends ChangeNotifier {
   Map<String, Fee> _feesDb = {};
   List<Album> _albumsDb = [];
   List<Holiday> _holidaysDb = [];
+  List<AcademicYearItem> _academicYears = [];
+  List<AcademicYearItem> get academicYears => _academicYears;
+  String? _selectedAcademicYearId;
+  String? get selectedAcademicYearId => _selectedAcademicYearId;
+  final Map<String, List<Holiday>> _academicYearHolidaysDb = {};
+  bool _isHolidaysLoading = false;
+  bool get isHolidaysLoading => _isHolidaysLoading;
+
   List<ExamResult> _examResultsDb = [];
   Map<String, List<Book>> _booksDb = {};
 
@@ -333,6 +341,64 @@ class AppState extends ChangeNotifier {
     } finally {
       if (!silent) {
         _isHealthLoading = false;
+      }
+      notifyListeners();
+    }
+  }
+
+  void setSelectedAcademicYearId(String yearId) {
+    if (_selectedAcademicYearId != yearId) {
+      _selectedAcademicYearId = yearId;
+      notifyListeners();
+      fetchAcademicYearsAndHolidays(yearId: yearId);
+    }
+  }
+
+  Future<void> fetchAcademicYearsAndHolidays({String? yearId, bool silent = false}) async {
+    try {
+      if (!silent) {
+        _isHolidaysLoading = true;
+        notifyListeners();
+      }
+
+      // 1. Fetch academic years
+      if (_academicYears.isEmpty) {
+        final yearsRaw = await ParentApiService.getAcademicYears();
+        if (yearsRaw.isNotEmpty) {
+          _academicYears = yearsRaw
+              .map((y) => AcademicYearItem.fromJson(y as Map<String, dynamic>))
+              .toList();
+        }
+      }
+
+      // Determine target academic year
+      String? targetYearId = yearId ?? _selectedAcademicYearId;
+      if (targetYearId == null && _academicYears.isNotEmpty) {
+        final current = _academicYears.firstWhere(
+          (y) => y.isCurrent,
+          orElse: () => _academicYears.first,
+        );
+        targetYearId = current.id;
+      }
+      _selectedAcademicYearId = targetYearId;
+
+      // 2. Fetch holidays for the academic year
+      final holidaysRaw = await ParentApiService.getHolidays(academicYearId: targetYearId);
+      if (holidaysRaw.isNotEmpty) {
+        final list = holidaysRaw
+            .map((h) => Holiday.fromJson(h as Map<String, dynamic>))
+            .toList();
+        list.sort((a, b) => a.fullDate.compareTo(b.fullDate));
+        if (targetYearId != null) {
+          _academicYearHolidaysDb[targetYearId] = list;
+        }
+        _holidaysDb = list;
+      }
+    } catch (e) {
+      debugPrint('Error fetching academic years / holidays: $e');
+    } finally {
+      if (!silent) {
+        _isHolidaysLoading = false;
       }
       notifyListeners();
     }
@@ -658,7 +724,14 @@ class AppState extends ChangeNotifier {
   List<Event> get events => _eventsDb[_currentChild.id] ?? (_eventsDb.values.isNotEmpty ? _eventsDb.values.first : []);
   Fee get fees => _feesDb[_currentChild.id] ?? (_feesDb.values.isNotEmpty ? _feesDb.values.first : Fee(status: 'Paid', amount: 0.0, history: []));
   List<Album> get albums => _albumsDb;
-  List<Holiday> get holidays => _holidaysDb;
+  List<Holiday> get holidays => getHolidaysForYear(_selectedAcademicYearId);
+
+  List<Holiday> getHolidaysForYear(String? yearId) {
+    if (yearId != null && _academicYearHolidaysDb.containsKey(yearId)) {
+      return _academicYearHolidaysDb[yearId]!;
+    }
+    return _holidaysDb;
+  }
   List<ExamResult> get examResults => _examResultsDb;
   List<Book> get books => _booksDb[_currentChild.id] ?? [];
 
@@ -1090,21 +1163,50 @@ class AppState extends ChangeNotifier {
       ),
     ];
 
-    // 9. Holidays
-    _holidaysDb = [
-      Holiday(id: '1', date: '26', month: 'Jan', day: 'Monday', title: 'Republic Day', type: 'National'),
-      Holiday(id: '2', date: '14', month: 'Mar', day: 'Friday', title: 'Holi', type: 'Festival'),
-      Holiday(id: '3', date: '29', month: 'Mar', day: 'Saturday', title: 'Good Friday', type: 'National'),
-      Holiday(id: '4', date: '14', month: 'Apr', day: 'Monday', title: 'Dr. Ambedkar Jayanti', type: 'National'),
-      Holiday(id: '5', date: '01', month: 'May', day: 'Thursday', title: 'Maharashtra Day', type: 'National'),
-      Holiday(id: '6', date: '23', month: 'May', day: 'Friday', title: 'Buddha Purnima', type: 'Festival'),
-      Holiday(id: '7', date: '15', month: 'Aug', day: 'Friday', title: 'Independence Day', type: 'National'),
-      Holiday(id: '8', date: '16', month: 'Aug', day: 'Saturday', title: 'Janmashtami', type: 'Festival'),
-      Holiday(id: '9', date: '02', month: 'Oct', day: 'Thursday', title: 'Gandhi Jayanti', type: 'National'),
-      Holiday(id: '10', date: '24', month: 'Oct', day: 'Friday', title: 'Dussehra', type: 'Festival'),
-      Holiday(id: '11', date: '13', month: 'Nov', day: 'Thursday', title: 'Diwali', type: 'Festival'),
-      Holiday(id: '12', date: '25', month: 'Dec', day: 'Thursday', title: 'Christmas', type: 'National'),
+    // 9. Academic Years & Holidays (2026-27 Academic Year Sequence: Apr/Jun 2026 to Mar 2027)
+    _academicYears = [
+      AcademicYearItem(
+        id: '224496ea-51ce-4eaa-9a09-006dcd02f2b5',
+        name: '2026-27',
+        startDate: DateTime(2026, 4, 1),
+        endDate: DateTime(2027, 3, 31),
+        isCurrent: true,
+      ),
+      AcademicYearItem(
+        id: '246febdb-fc26-4202-ab9f-7e7ad6445a24',
+        name: '2027-28',
+        startDate: DateTime(2027, 6, 15),
+        endDate: DateTime(2028, 4, 30),
+        isCurrent: false,
+      ),
     ];
+    _selectedAcademicYearId = '224496ea-51ce-4eaa-9a09-006dcd02f2b5';
+
+    _holidaysDb = [
+      Holiday(id: 'h1', date: '03', month: 'Apr', day: 'Friday', title: 'Good Friday', type: 'National', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2026, 4, 3)),
+      Holiday(id: 'h2', date: '14', month: 'Apr', day: 'Tuesday', title: 'Ambedkar Jayanti', type: 'Bank Holiday', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2026, 4, 14)),
+      Holiday(id: 'h3', date: '01', month: 'May', day: 'Friday', title: 'Labour Day / Maharashtra Day', type: 'Bank Holiday', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2026, 5, 1)),
+      Holiday(id: 'h4', date: '28', month: 'May', day: 'Thursday', title: 'Bakrid (Eid-ul-Adha)', type: 'Gazetted', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2026, 5, 28)),
+      Holiday(id: 'h5', date: '26', month: 'Jun', day: 'Friday', title: 'Muharram', type: 'Gazetted', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2026, 6, 26)),
+      Holiday(id: 'h6', date: '15', month: 'Aug', day: 'Saturday', title: 'Independence Day', type: 'National', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2026, 8, 15)),
+      Holiday(id: 'h7', date: '26', month: 'Aug', day: 'Wednesday', title: 'Milad-un-Nabi (Id-e-Milad)', type: 'Gazetted', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2026, 8, 26)),
+      Holiday(id: 'h8', date: '28', month: 'Aug', day: 'Friday', title: 'Raksha Bandhan', type: 'Bank Holiday', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2026, 8, 28)),
+      Holiday(id: 'h9', date: '04', month: 'Sep', day: 'Friday', title: 'Janmashtami', type: 'Gazetted', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2026, 9, 4)),
+      Holiday(id: 'h10', date: '14', month: 'Sep', day: 'Monday', title: 'Ganesh Chaturthi', type: 'Gazetted', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2026, 9, 14)),
+      Holiday(id: 'h11', date: '02', month: 'Oct', day: 'Friday', title: 'Gandhi Jayanti', type: 'National', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2026, 10, 2)),
+      Holiday(id: 'h12', date: '20', month: 'Oct', day: 'Tuesday', title: 'Dussehra (Vijayadashami)', type: 'Festival', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2026, 10, 20)),
+      Holiday(id: 'h13', date: '08', month: 'Nov', day: 'Sunday', title: 'Diwali (Deepavali)', type: 'Festival', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2026, 11, 8)),
+      Holiday(id: 'h14', date: '09', month: 'Nov', day: 'Monday', title: 'Govardhan Puja', type: 'Bank Holiday', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2026, 11, 9)),
+      Holiday(id: 'h15', date: '10', month: 'Nov', day: 'Tuesday', title: 'Bhai Dooj', type: 'Bank Holiday', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2026, 11, 10)),
+      Holiday(id: 'h16', date: '24', month: 'Nov', day: 'Tuesday', title: 'Guru Nanak Jayanti', type: 'Gazetted', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2026, 11, 24)),
+      Holiday(id: 'h17', date: '25', month: 'Dec', day: 'Friday', title: 'Christmas', type: 'National', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2026, 12, 25)),
+      Holiday(id: 'h18', date: '14', month: 'Jan', day: 'Thursday', title: 'Makar Sankranti / Pongal', type: 'Bank Holiday', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2027, 1, 14)),
+      Holiday(id: 'h19', date: '26', month: 'Jan', day: 'Tuesday', title: 'Republic Day', type: 'National', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2027, 1, 26)),
+      Holiday(id: 'h20', date: '06', month: 'Mar', day: 'Saturday', title: 'Maha Shivratri', type: 'Gazetted', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2027, 3, 6)),
+      Holiday(id: 'h21', date: '10', month: 'Mar', day: 'Wednesday', title: 'Id-ul-Fitr (Ramzan Eid)', type: 'Gazetted', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2027, 3, 10)),
+      Holiday(id: 'h22', date: '22', month: 'Mar', day: 'Monday', title: 'Holi', type: 'Festival', academicYearId: '224496ea-51ce-4eaa-9a09-006dcd02f2b5', fullDate: DateTime(2027, 3, 22)),
+    ];
+    _academicYearHolidaysDb['224496ea-51ce-4eaa-9a09-006dcd02f2b5'] = _holidaysDb;
 
     // 10. Exam results
     _examResultsDb = [];

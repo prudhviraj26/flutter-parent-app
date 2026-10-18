@@ -7,64 +7,7 @@ import '../state/app_state.dart';
 import '../models/models.dart';
 import '../constants/colors.dart';
 export 'health_records_screen.dart';
-
-// 1. Holidays Screen
-class HolidaysScreen extends StatelessWidget {
-  const HolidaysScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final appState = Provider.of<AppState>(context);
-    final list = appState.holidays;
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text('holidays'.tr(), style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        itemCount: list.length,
-        itemBuilder: (context, idx) {
-          final item = list[idx];
-          return Card(
-            color: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            margin: const EdgeInsets.only(bottom: 12),
-            child: ListTile(
-              leading: Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(color: AppColors.primaryTeal.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-                alignment: Alignment.center,
-                child: const Icon(LucideIcons.plane, color: AppColors.primaryTeal),
-              ),
-              title: Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textMain)),
-              subtitle: Text('${item.date} ${item.month} • ${item.day}', style: const TextStyle(color: AppColors.textMuted)),
-              trailing: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: AppColors.secondaryOrange.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  item.type,
-                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.secondaryOrange),
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
+export 'holidays_screen.dart';
 
 // 2. My Teachers Screen
 class MyTeachersScreen extends StatelessWidget {

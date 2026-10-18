@@ -28,7 +28,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final notices = appState.notices;
     final classUpdates = appState.classUpdates;
     final fees = appState.fees;
-    final attendance = appState.attendance;
     final events = appState.events;
 
     final latestNotice = notices.isNotEmpty ? notices[0] : null;
@@ -333,7 +332,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: AppColors.secondaryOrange,
                           icon: LucideIcons.userCheck,
                           title: 'attendance'.tr(),
-                          subtitle: '${attendance.summary.attendancePercentage}% ${'thisMonth'.tr()}',
+                          subtitle: 'thisMonth'.tr(),
                         ),
                       ),
                     ],

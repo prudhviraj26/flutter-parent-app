@@ -500,21 +500,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                         ],
                       ),
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE0F7FA),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        '${attendance.summary.attendancePercentage}%',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF00838F),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),

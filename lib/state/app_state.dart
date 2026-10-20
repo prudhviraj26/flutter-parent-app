@@ -15,14 +15,12 @@ class AppState extends ChangeNotifier {
   String? _mobile;
 
   // Selected Child Specs
-  late Child _currentChild;
+  Child? _currentChild;
   List<Child> _children = [];
 
   // Child Avatars mapping
   final Map<String, String> _childAvatars = {};
 
-  // Mock Database lists
-  List<Child> _childrenDb = [];
   List<Notice> _noticesDb = [];
   final Map<String, List<Notice>> _childNoticesDb = {};
   bool _isNoticesLoading = false;
@@ -63,16 +61,20 @@ class AppState extends ChangeNotifier {
   bool get loggedIn => _loggedIn;
   bool get mustChangePassword => _mustChangePassword;
   String? get mobile => _mobile;
-  Child get currentChild => _currentChild;
+  Child get currentChild {
+    if (_currentChild != null) return _currentChild!;
+    if (_children.isNotEmpty) return _children[0];
+    return Child.empty();
+  }
   List<Child> get children => _children;
   Map<String, String> get childAvatars => _childAvatars;
 
-  String _schoolName = 'Demo International School';
-  String get currentSchoolName => _schoolName;
+  String _schoolName = '';
+  String get currentSchoolName => _schoolName.isNotEmpty ? _schoolName : 'Veyho School';
 
   SchoolConfig get schoolConfig => SchoolConfig(
-    name: _schoolName,
-    nameMarathi: _schoolName,
+    name: currentSchoolName,
+    nameMarathi: currentSchoolName,
     logo: '',
   );
 
@@ -84,9 +86,6 @@ class AppState extends ChangeNotifier {
   };
 
   AppState() {
-    _initMockDatabase();
-    _currentChild = _childrenDb[0];
-    _children = _childrenDb;
     _initPreferences();
   }
 
@@ -97,6 +96,38 @@ class AppState extends ChangeNotifier {
     // Load language preference
     _language = _prefs?.getString('veyho_app_language') ?? 'en';
 
+    // Load cached school name
+    final cachedSchool = _prefs?.getString('veyho_cached_school_name');
+    if (cachedSchool != null && cachedSchool.isNotEmpty) {
+      _schoolName = cachedSchool;
+    }
+
+    // Load cached children for instant rendering on cold start
+    final cachedChildrenJson = _prefs?.getString('veyho_cached_children');
+    if (cachedChildrenJson != null && cachedChildrenJson.isNotEmpty) {
+      try {
+        final List decoded = json.decode(cachedChildrenJson);
+        _children = decoded
+            .map((c) => Child.fromJson(c as Map<String, dynamic>))
+            .toList();
+      } catch (e) {
+        debugPrint('Error restoring cached children: $e');
+      }
+    }
+
+    // Load active child ID
+    final savedChildId = _prefs?.getString('veyho_active_child_id');
+    if (savedChildId != null && _children.isNotEmpty) {
+      final idx = _children.indexWhere((c) => c.id == savedChildId);
+      if (idx != -1) {
+        _currentChild = _children[idx];
+      } else {
+        _currentChild = _children[0];
+      }
+    } else if (_children.isNotEmpty) {
+      _currentChild = _children[0];
+    }
+
     // Load login session
     final userJson = _prefs?.getString('veyho_parent_user');
     if (userJson != null) {
@@ -104,22 +135,14 @@ class AppState extends ChangeNotifier {
         final Map<String, dynamic> userData = json.decode(userJson);
         _loggedIn = userData['loggedIn'] as bool? ?? false;
         _mobile = userData['mobile'] as String?;
+        _mustChangePassword = userData['mustChangePassword'] as bool? ?? false;
       } catch (e) {
         _prefs?.remove('veyho_parent_user');
       }
     }
 
-    // Load active child ID
-    final savedChildId = _prefs?.getString('veyho_active_child_id');
-    if (savedChildId != null) {
-      final idx = _children.indexWhere((c) => c.id == savedChildId);
-      if (idx != -1) {
-        _currentChild = _children[idx];
-      }
-    }
-
     // Load child avatars
-    for (var child in _childrenDb) {
+    for (var child in _children) {
       final avatarBase64 = _prefs?.getString('veyho_child_avatar_${child.id}');
       if (avatarBase64 != null) {
         _childAvatars[child.id] = avatarBase64;
@@ -129,11 +152,11 @@ class AppState extends ChangeNotifier {
     // Load read notices tracking
     await _loadReadNoticeIds();
 
+    notifyListeners();
+
     if (_loggedIn) {
       fetchLiveProfile();
     }
-
-    notifyListeners();
   }
 
   bool _isLoadingLive = false;
@@ -148,6 +171,7 @@ class AppState extends ChangeNotifier {
       final profile = await ParentApiService.getProfile();
       if (profile['schoolName'] != null && profile['schoolName'].toString().isNotEmpty) {
         _schoolName = profile['schoolName'].toString();
+        await _prefs?.setString('veyho_cached_school_name', _schoolName);
       }
 
       if (profile['children'] != null && (profile['children'] as List).isNotEmpty) {
@@ -184,14 +208,26 @@ class AppState extends ChangeNotifier {
           );
         }).toList();
 
+        // Save real children to cache for instant rendering next time
+        await _prefs?.setString(
+          'veyho_cached_children',
+          json.encode(_children.map((c) => c.toJson()).toList()),
+        );
+
         final savedChildId = _prefs?.getString('veyho_active_child_id');
         final idx = _children.indexWhere((c) => c.id == savedChildId);
         _currentChild = idx != -1 ? _children[idx] : _children[0];
+        await _prefs?.setString('veyho_active_child_id', currentChild.id);
 
-        await fetchLiveChildData(_currentChild.id);
+        await fetchLiveChildData(currentChild.id);
       }
     } catch (e) {
       debugPrint('Live profile fetch note: $e');
+      final errStr = e.toString().toLowerCase();
+      // If token refresh failed and session is terminated/revoked on server
+      if (errStr.contains('unauthorized') || errStr.contains('session expired') || errStr.contains('revoked')) {
+        await logout();
+      }
     } finally {
       _isLoadingLive = false;
       notifyListeners();
@@ -199,6 +235,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> fetchLiveChildData(String studentId) async {
+    if (studentId.isEmpty) return;
     try {
       final results = await Future.wait([
         ParentApiService.getChildAttendance(studentId),
@@ -287,7 +324,7 @@ class AppState extends ChangeNotifier {
               'name': ct['name'].toString(),
               'isClassTeacher': true,
               'subjects': <String>[],
-              'class': _currentChild.grade,
+              'class': currentChild.grade,
             };
           }
 
@@ -305,7 +342,7 @@ class AppState extends ChangeNotifier {
                   'name': st['name'].toString(),
                   'isClassTeacher': false,
                   'subjects': subj.isNotEmpty ? <String>[subj] : <String>[],
-                  'class': _currentChild.grade,
+                  'class': currentChild.grade,
                 };
               }
             }
@@ -457,6 +494,7 @@ class AppState extends ChangeNotifier {
       final res = await ApiService.post('/auth/login', {
         'mobile': mobileNumber,
         'password': password,
+        'platform': 'mobile',
       }, requireAuth: false);
 
       if (res is Map<String, dynamic> && res['accessToken'] != null) {
@@ -478,6 +516,7 @@ class AppState extends ChangeNotifier {
         if (res['user'] != null) {
           if (res['user']['schoolName'] != null && res['user']['schoolName'].toString().isNotEmpty) {
             _schoolName = res['user']['schoolName'].toString();
+            await _prefs?.setString('veyho_cached_school_name', _schoolName);
           }
           if (res['user']['children'] != null) {
             final List childrenList = res['user']['children'];
@@ -508,12 +547,20 @@ class AppState extends ChangeNotifier {
                   studentId: c['id'].toString(),
                 );
               }).toList();
+
               _currentChild = _children[0];
+              await _prefs?.setString(
+                'veyho_cached_children',
+                json.encode(_children.map((c) => c.toJson()).toList()),
+              );
+              await _prefs?.setString('veyho_active_child_id', currentChild.id);
             }
           }
         }
 
-        await fetchLiveChildData(_currentChild.id);
+        if (_children.isNotEmpty) {
+          await fetchLiveChildData(currentChild.id);
+        }
 
         notifyListeners();
         return true;
@@ -563,8 +610,14 @@ class AppState extends ChangeNotifier {
   Future<void> logout() async {
     _loggedIn = false;
     _mobile = null;
+    _schoolName = '';
+    _children = [];
+    _currentChild = null;
     await ApiService.clearTokens();
     await _prefs?.remove('veyho_parent_user');
+    await _prefs?.remove('veyho_cached_school_name');
+    await _prefs?.remove('veyho_cached_children');
+    await _prefs?.remove('veyho_active_child_id');
     notifyListeners();
   }
 
@@ -746,15 +799,17 @@ class AppState extends ChangeNotifier {
     _readNoticeIds.addAll(unread);
     await _saveReadNoticeIds();
     notifyListeners();
-    ParentApiService.markAllNoticesRead(_currentChild.id).catchError((_) => false);
+    if (currentChild.id.isNotEmpty) {
+      ParentApiService.markAllNoticesRead(currentChild.id).catchError((_) => false);
+    }
   }
 
-  List<Notice> get notices => _childNoticesDb[_currentChild.id] ?? _noticesDb;
-  List<ClassUpdate> get classUpdates => _classUpdatesDb[_currentChild.id] ?? [];
-  List<Teacher> get teachers => _teachersDb[_currentChild.id] ?? (_teachersDb.values.isNotEmpty ? _teachersDb.values.first : []);
-  Attendance get attendance => _attendanceDb[_currentChild.id] ?? (_attendanceDb.values.isNotEmpty ? _attendanceDb.values.first : Attendance(month: 'October 2026', summary: AttendanceSummary(present: 0, absent: 0, holiday: 0, weekend: 0), calendar: {}));
-  List<Event> get events => _eventsDb[_currentChild.id] ?? (_eventsDb.values.isNotEmpty ? _eventsDb.values.first : []);
-  Fee get fees => _feesDb[_currentChild.id] ?? (_feesDb.values.isNotEmpty ? _feesDb.values.first : Fee(status: 'Paid', amount: 0.0, history: []));
+  List<Notice> get notices => _childNoticesDb[currentChild.id] ?? _noticesDb;
+  List<ClassUpdate> get classUpdates => _classUpdatesDb[currentChild.id] ?? [];
+  List<Teacher> get teachers => _teachersDb[currentChild.id] ?? (_teachersDb.values.isNotEmpty ? _teachersDb.values.first : []);
+  Attendance get attendance => _attendanceDb[currentChild.id] ?? (_attendanceDb.values.isNotEmpty ? _attendanceDb.values.first : Attendance(month: '—', summary: AttendanceSummary(present: 0, absent: 0, holiday: 0, weekend: 0), calendar: {}));
+  List<Event> get events => _eventsDb[currentChild.id] ?? (_eventsDb.values.isNotEmpty ? _eventsDb.values.first : []);
+  Fee get fees => _feesDb[currentChild.id] ?? (_feesDb.values.isNotEmpty ? _feesDb.values.first : Fee(status: '—', amount: 0.0, dueDate: '—', history: []));
   List<Album> get albums => _albumsDb;
   List<Holiday> get holidays => getHolidaysForYear(_selectedAcademicYearId);
 
@@ -765,11 +820,11 @@ class AppState extends ChangeNotifier {
     return _holidaysDb;
   }
   List<ExamResult> get examResults => _examResultsDb;
-  List<Book> get books => _booksDb[_currentChild.id] ?? [];
+  List<Book> get books => _booksDb[currentChild.id] ?? [];
 
   // Message Teacher
   void addParentMessage(String teacherId, String text) {
-    final list = _teachersDb[_currentChild.id] ?? [];
+    final list = _teachersDb[currentChild.id] ?? [];
     final idx = list.indexWhere((t) => t.id == teacherId);
     if (idx != -1) {
       final now = DateTime.now();
@@ -787,22 +842,23 @@ class AppState extends ChangeNotifier {
       notifyListeners();
     }
 
-    ParentApiService.sendMessage(_currentChild.id, text).catchError((e) {
-      debugPrint('API message send note: $e');
-      return <String, dynamic>{};
-    });
+    if (currentChild.id.isNotEmpty) {
+      ParentApiService.sendMessage(currentChild.id, text).catchError((e) {
+        debugPrint('API message send note: $e');
+        return <String, dynamic>{};
+      });
+    }
   }
 
   // Reserve Library Book
   void reserveBook(String bookId) {
-    final list = _booksDb[_currentChild.id] ?? [];
+    final list = _booksDb[currentChild.id] ?? [];
     final idx = list.indexWhere((b) => b.id == bookId);
     if (idx != -1) {
       final now = DateTime.now();
       final dateStr = "${now.day.toString().padLeft(2, '0')}-${now.month.toString().padLeft(2, '0')}-${now.year}";
       
       list[idx].status = 'Reserved';
-      // in Dart, we create a new Book instance to assign back because of immutable fields, or write custom update methods
       final original = list[idx];
       list[idx] = Book(
         id: original.id,
@@ -819,7 +875,7 @@ class AppState extends ChangeNotifier {
 
   // Pay School Fees
   void payFees(double amount, String method) {
-    final feeObj = _feesDb[_currentChild.id];
+    final feeObj = _feesDb[currentChild.id];
     if (feeObj != null && feeObj.status == 'Due') {
       final now = DateTime.now();
       final dateStr = "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
@@ -840,10 +896,10 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  // Initialize Mock Data
-  void _initMockDatabase() {
+  // Initialize Mock Data (for demo/testing only)
+  void initMockDatabase() {
     // 1. Children Specs
-    _childrenDb = [
+    _children = [
       Child(
         id: 'aarav',
         name: 'Aarav Sharma',

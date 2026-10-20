@@ -20,6 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final FocusNode _passwordFocusNode = FocusNode();
 
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   void _handleLogin() async {
     final String mobile = _mobileController.text.replaceAll(RegExp(r'\D'), '');
@@ -80,11 +81,13 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() {
           _isLoading = false;
         });
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(e.toString().replaceAll('Exception: ', '')),
             backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 7),
           ),
         );
       }
@@ -215,12 +218,24 @@ class _LoginScreenState extends State<LoginScreen> {
                   TextField(
                     controller: _passwordController,
                     focusNode: _passwordFocusNode,
-                    obscureText: true,
+                    obscureText: _obscurePassword,
                     textInputAction: TextInputAction.done,
                     onSubmitted: (_) => _handleLogin(),
                     style: const TextStyle(color: AppColors.textMain),
                     decoration: InputDecoration(
                       prefixIcon: const Icon(LucideIcons.lock, color: AppColors.textMuted),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _obscurePassword ? LucideIcons.eyeOff : LucideIcons.eye,
+                          color: AppColors.textMuted,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _obscurePassword = !_obscurePassword;
+                          });
+                        },
+                      ),
                       hintText: 'enterPassword'.tr(),
                       hintStyle: const TextStyle(color: Colors.grey),
                       filled: true,

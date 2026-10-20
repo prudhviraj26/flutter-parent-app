@@ -23,6 +23,20 @@ class Child {
     required this.studentId,
   });
 
+  factory Child.empty() {
+    return Child(
+      id: '',
+      name: 'Student',
+      grade: '—',
+      enrollmentNo: '—',
+      dob: '—',
+      gender: '—',
+      apaarId: '—',
+      penNo: '—',
+      studentId: '',
+    );
+  }
+
   factory Child.fromJson(Map<String, dynamic> json) {
     return Child(
       id: json['id'] as String,

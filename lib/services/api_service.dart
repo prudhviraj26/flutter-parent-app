@@ -18,7 +18,7 @@ class ApiService {
   // Save Tokens securely
   static Future<void> saveTokens({required String accessToken, String? refreshToken}) async {
     await _storage.write(key: _tokenKey, value: accessToken);
-    if (refreshToken != null) {
+    if (refreshToken != null && refreshToken.isNotEmpty) {
       await _storage.write(key: _refreshTokenKey, value: refreshToken);
     }
   }
@@ -66,12 +66,16 @@ class ApiService {
         final body = jsonDecode(res.body);
         if (body is Map<String, dynamic> && body['accessToken'] != null) {
           final newAccess = body['accessToken'] as String;
-          final newRefresh = body['refreshToken'] as String?;
+          final newRefresh = body['refreshToken'] as String? ?? refreshToken;
           await saveTokens(accessToken: newAccess, refreshToken: newRefresh);
           debugPrint('Parent App silent token refresh succeeded');
           _isRefreshing = false;
           return true;
         }
+      } else if (res.statusCode == 401 || res.statusCode == 403) {
+        // Refresh token is expired or revoked on server
+        debugPrint('Parent App refresh token expired/revoked on server');
+        await clearTokens();
       }
     } catch (e) {
       debugPrint('Parent App silent token refresh failed: $e');

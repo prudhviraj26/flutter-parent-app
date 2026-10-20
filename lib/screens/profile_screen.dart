@@ -299,6 +299,9 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   final _newPassController = TextEditingController();
   final _confirmPassController = TextEditingController();
   bool _isLoading = false;
+  bool _obscureOld = true;
+  bool _obscureNew = true;
+  bool _obscureConfirm = true;
 
   Future<void> _savePassword() async {
     final current = _oldPassController.text.trim();
@@ -384,36 +387,60 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
             children: [
               TextField(
                 controller: _oldPassController,
-                obscureText: true,
+                obscureText: _obscureOld,
                 style: const TextStyle(color: AppColors.textMain),
                 decoration: InputDecoration(
                   labelText: 'currentPassword'.tr(),
                   filled: true,
                   fillColor: AppColors.background,
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureOld ? LucideIcons.eyeOff : LucideIcons.eye,
+                      color: AppColors.textMuted,
+                      size: 20,
+                    ),
+                    onPressed: () => setState(() => _obscureOld = !_obscureOld),
+                  ),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
                 ),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: _newPassController,
-                obscureText: true,
+                obscureText: _obscureNew,
                 style: const TextStyle(color: AppColors.textMain),
                 decoration: InputDecoration(
                   labelText: 'newPassword'.tr(),
                   filled: true,
                   fillColor: AppColors.background,
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureNew ? LucideIcons.eyeOff : LucideIcons.eye,
+                      color: AppColors.textMuted,
+                      size: 20,
+                    ),
+                    onPressed: () => setState(() => _obscureNew = !_obscureNew),
+                  ),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
                 ),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: _confirmPassController,
-                obscureText: true,
+                obscureText: _obscureConfirm,
                 style: const TextStyle(color: AppColors.textMain),
                 decoration: InputDecoration(
                   labelText: 'confirmNewPassword'.tr(),
                   filled: true,
                   fillColor: AppColors.background,
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscureConfirm ? LucideIcons.eyeOff : LucideIcons.eye,
+                      color: AppColors.textMuted,
+                      size: 20,
+                    ),
+                    onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                  ),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
                 ),
               ),

@@ -10,6 +10,8 @@ class Child {
   final String apaarId;
   final String penNo;
   final String studentId;
+  final String? photoUrl;
+  final String? rollNumber;
 
   Child({
     required this.id,
@@ -21,6 +23,8 @@ class Child {
     required this.apaarId,
     required this.penNo,
     required this.studentId,
+    this.photoUrl,
+    this.rollNumber,
   });
 
   factory Child.empty() {
@@ -34,20 +38,24 @@ class Child {
       apaarId: '—',
       penNo: '—',
       studentId: '',
+      photoUrl: null,
+      rollNumber: null,
     );
   }
 
   factory Child.fromJson(Map<String, dynamic> json) {
     return Child(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      grade: json['grade'] as String,
-      enrollmentNo: json['enrollmentNo'] as String,
-      dob: json['dob'] as String,
-      gender: json['gender'] as String,
-      apaarId: json['apaarId'] as String,
-      penNo: json['penNo'] as String,
-      studentId: json['studentId'] as String,
+      id: (json['id'] ?? '').toString(),
+      name: (json['name'] ?? 'Student').toString(),
+      grade: (json['grade'] ?? '—').toString(),
+      enrollmentNo: (json['enrollmentNo'] ?? '—').toString(),
+      dob: (json['dob'] ?? '—').toString(),
+      gender: (json['gender'] ?? '—').toString(),
+      apaarId: (json['apaarId'] ?? '—').toString(),
+      penNo: (json['penNo'] ?? '—').toString(),
+      studentId: (json['studentId'] ?? '').toString(),
+      photoUrl: json['photoUrl'] as String?,
+      rollNumber: json['rollNumber'] as String?,
     );
   }
 
@@ -62,6 +70,8 @@ class Child {
       'apaarId': apaarId,
       'penNo': penNo,
       'studentId': studentId,
+      'photoUrl': photoUrl,
+      'rollNumber': rollNumber,
     };
   }
 }
@@ -241,6 +251,7 @@ class Notice {
   final String body;
   final NoticeCta? cta;
   final String category;
+  final String broadcastType;
   final String? publishedAt;
   final List<NoticeAttachment> attachments;
   final String? externalUrl;
@@ -256,6 +267,7 @@ class Notice {
     required this.body,
     this.cta,
     this.category = 'School Notice',
+    this.broadcastType = 'school_notice',
     this.publishedAt,
     this.attachments = const [],
     this.externalUrl,
@@ -297,6 +309,22 @@ class Notice {
       }
     }
 
+    String cat = (json['category'] ?? 'School Notice').toString();
+    if (cat.toLowerCase().contains('grade') ||
+        cat.toLowerCase().contains('section') ||
+        cat.toLowerCase().contains('class') ||
+        cat.toLowerCase().contains('student')) {
+      cat = 'Class Notice';
+    } else {
+      cat = 'School Notice';
+    }
+
+    final rawType = json['broadcastType']?.toString();
+    String broadcastType = rawType ?? '';
+    if (broadcastType.isEmpty) {
+      broadcastType = cat.contains('Class') ? 'class_notice' : 'school_notice';
+    }
+
     return Notice(
       id: (json['id'] ?? '').toString(),
       source: (json['source'] ?? json['senderName'] ?? json['author'] ?? 'School Administration').toString(),
@@ -305,13 +333,33 @@ class Notice {
       time: formattedTime,
       body: (json['body'] ?? json['message'] ?? '').toString(),
       cta: json['cta'] != null ? NoticeCta.fromJson(json['cta'] as Map<String, dynamic>) : null,
-      category: (json['category'] ?? 'School Notice').toString(),
+      category: cat,
+      broadcastType: broadcastType,
       publishedAt: pubAt,
       attachments: parsedAttachments,
       externalUrl: json['externalUrl']?.toString(),
       externalUrlLabel: json['externalUrlLabel']?.toString(),
       isRead: json['isRead'] == true,
     );
+  }
+
+  bool get isSchoolNotice => broadcastType == 'school_notice' || (!isClassNotice && category.toLowerCase().contains('school'));
+  bool get isClassNotice => broadcastType == 'class_notice' || category.toLowerCase().contains('class');
+  bool get isHomework => broadcastType == 'homework';
+  bool get isClasswork => broadcastType == 'classwork';
+
+  DateTime get dateTime {
+    if (publishedAt != null && publishedAt!.isNotEmpty) {
+      try {
+        return DateTime.parse(publishedAt!).toLocal();
+      } catch (_) {}
+    }
+    if (date.isNotEmpty && date != 'Recent') {
+      try {
+        return DateTime.parse(date);
+      } catch (_) {}
+    }
+    return DateTime.fromMillisecondsSinceEpoch(0);
   }
 
   Map<String, dynamic> toJson() {
@@ -324,6 +372,7 @@ class Notice {
       'body': body,
       'cta': cta?.toJson(),
       'category': category,
+      'broadcastType': broadcastType,
       'publishedAt': publishedAt,
       'attachments': attachments.map((a) => a.toJson()).toList(),
       'externalUrl': externalUrl,
@@ -332,7 +381,7 @@ class Notice {
     };
   }
 
-  Notice copyWith({bool? isRead}) {
+  Notice copyWith({bool? isRead, String? broadcastType}) {
     return Notice(
       id: id,
       source: source,
@@ -342,6 +391,7 @@ class Notice {
       body: body,
       cta: cta,
       category: category,
+      broadcastType: broadcastType ?? this.broadcastType,
       publishedAt: publishedAt,
       attachments: attachments,
       externalUrl: externalUrl,
@@ -354,34 +404,81 @@ class Notice {
 class ClassUpdate {
   final String id;
   final String type; // 'Classwork' | 'Homework'
+  final String broadcastType; // 'homework' | 'classwork'
   final String subject;
+  final String title;
   final String classTarget; // mapped from class
   final String teacher;
   final String body;
-  final List<String>? attachments;
+  final List<String> attachments;
   final String date;
+  final String time;
+  final String? publishedAt;
+  final bool isRead;
 
   ClassUpdate({
     required this.id,
     required this.type,
+    this.broadcastType = 'homework',
     required this.subject,
+    this.title = '',
     required this.classTarget,
     required this.teacher,
     required this.body,
-    this.attachments,
+    this.attachments = const [],
     required this.date,
+    this.time = '',
+    this.publishedAt,
+    this.isRead = false,
   });
 
+  bool get isHomework => type.toLowerCase() == 'homework' || broadcastType == 'homework';
+  bool get isClasswork => !isHomework;
+
+  DateTime get dateTime {
+    if (publishedAt != null && publishedAt!.isNotEmpty) {
+      try {
+        return DateTime.parse(publishedAt!).toLocal();
+      } catch (_) {}
+    }
+    if (date.isNotEmpty) {
+      try {
+        return DateTime.parse(date);
+      } catch (_) {}
+    }
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
   factory ClassUpdate.fromJson(Map<String, dynamic> json) {
+    final rawType = (json['type'] ?? (json['broadcastType'] == 'classwork' ? 'Classwork' : 'Homework')).toString();
+    final bType = (json['broadcastType'] ?? (rawType.toLowerCase() == 'classwork' ? 'classwork' : 'homework')).toString();
+
+    List<String> parsedAttachments = [];
+    if (json['attachments'] is List) {
+      for (final a in json['attachments'] as List) {
+        if (a is String && a.isNotEmpty) {
+          parsedAttachments.add(a);
+        } else if (a is Map<String, dynamic>) {
+          final url = (a['readUrl'] ?? a['url'] ?? '').toString();
+          if (url.isNotEmpty) parsedAttachments.add(url);
+        }
+      }
+    }
+
     return ClassUpdate(
-      id: json['id'] as String,
-      type: json['type'] as String,
-      subject: json['subject'] as String,
-      classTarget: json['class'] as String,
-      teacher: json['teacher'] as String,
-      body: json['body'] as String,
-      attachments: (json['attachments'] as List<dynamic>?)?.map((e) => e as String).toList(),
-      date: json['date'] as String,
+      id: (json['id'] ?? '').toString(),
+      type: rawType,
+      broadcastType: bType,
+      subject: (json['subject'] ?? 'General').toString(),
+      title: (json['title'] ?? '').toString(),
+      classTarget: (json['class'] ?? json['classTarget'] ?? '').toString(),
+      teacher: (json['teacher'] ?? json['senderName'] ?? 'Class Teacher').toString(),
+      body: (json['body'] ?? json['description'] ?? '').toString(),
+      attachments: parsedAttachments,
+      date: (json['date'] ?? '').toString(),
+      time: (json['time'] ?? '').toString(),
+      publishedAt: json['publishedAt']?.toString() ?? json['createdAt']?.toString(),
+      isRead: json['isRead'] == true,
     );
   }
 
@@ -389,12 +486,17 @@ class ClassUpdate {
     return {
       'id': id,
       'type': type,
+      'broadcastType': broadcastType,
       'subject': subject,
+      'title': title,
       'class': classTarget,
       'teacher': teacher,
       'body': body,
       'attachments': attachments,
       'date': date,
+      'time': time,
+      'publishedAt': publishedAt,
+      'isRead': isRead,
     };
   }
 }

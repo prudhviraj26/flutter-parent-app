@@ -22,25 +22,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
     final currentChild = appState.currentChild;
-    final String language = appState.language;
 
     // Retrieve active student metrics from state
-    final notices = appState.notices;
     final classUpdates = appState.classUpdates;
     final fees = appState.fees;
     final events = appState.events;
 
-    final latestNotice = notices.isNotEmpty ? notices[0] : null;
     final pendingHomework = classUpdates.where((u) => u.type == 'Homework').length;
     final childAvatar = appState.childAvatars[currentChild.id];
 
     // School name dynamic
-    String schoolName = appState.schoolConfig.name;
-    if (language == 'mr') {
-      schoolName = appState.schoolConfig.nameMarathi;
-    } else if (language == 'hi') {
-      schoolName = 'डेमो इंटरनेशनल स्कूल';
-    }
+    final String schoolName = appState.currentSchoolName;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -77,10 +69,31 @@ class _HomeScreenState extends State<HomeScreen> {
                                     )
                                   ],
                                 ),
-                                child: const Icon(
-                                  LucideIcons.school,
-                                  color: AppColors.primaryTeal,
-                                ),
+                                clipBehavior: Clip.antiAlias,
+                                child: appState.schoolLogoBase64 != null
+                                    ? Padding(
+                                        padding: const EdgeInsets.all(4),
+                                        child: Image.memory(
+                                          base64Decode(appState.schoolLogoBase64!),
+                                          fit: BoxFit.contain,
+                                        ),
+                                      )
+                                    : (appState.schoolLogoUrl != null && appState.schoolLogoUrl!.isNotEmpty
+                                        ? Padding(
+                                            padding: const EdgeInsets.all(4),
+                                            child: Image.network(
+                                              appState.schoolLogoUrl!,
+                                              fit: BoxFit.contain,
+                                              errorBuilder: (context, error, stackTrace) => const Icon(
+                                                LucideIcons.school,
+                                                color: AppColors.primaryTeal,
+                                              ),
+                                            ),
+                                          )
+                                        : const Icon(
+                                            LucideIcons.school,
+                                            color: AppColors.primaryTeal,
+                                          )),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -161,23 +174,54 @@ class _HomeScreenState extends State<HomeScreen> {
                                       fit: BoxFit.cover,
                                     ),
                                   )
-                                : Container(
-                                    width: 32,
-                                    height: 32,
-                                    decoration: const BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: Colors.white,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: Text(
-                                      currentChild.name.substring(0, 1).toUpperCase(),
-                                      style: const TextStyle(
-                                        color: AppColors.primaryTeal,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                  ),
+                                : (currentChild.photoUrl != null && currentChild.photoUrl!.isNotEmpty
+                                    ? ClipRRect(
+                                        borderRadius: BorderRadius.circular(20),
+                                        child: Image.network(
+                                          currentChild.photoUrl!,
+                                          width: 34,
+                                          height: 34,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) => Container(
+                                            width: 32,
+                                            height: 32,
+                                            decoration: const BoxDecoration(
+                                              shape: BoxShape.circle,
+                                              color: Colors.white,
+                                            ),
+                                            alignment: Alignment.center,
+                                            child: Text(
+                                              currentChild.name.isNotEmpty
+                                                  ? currentChild.name.substring(0, 1).toUpperCase()
+                                                  : 'S',
+                                              style: const TextStyle(
+                                                color: AppColors.primaryTeal,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 14,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    : Container(
+                                        width: 32,
+                                        height: 32,
+                                        decoration: const BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: Colors.white,
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Text(
+                                          currentChild.name.isNotEmpty
+                                              ? currentChild.name.substring(0, 1).toUpperCase()
+                                              : 'S',
+                                          style: const TextStyle(
+                                            color: AppColors.primaryTeal,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      )),
                           ),
                         ),
                       ],
@@ -208,105 +252,106 @@ class _HomeScreenState extends State<HomeScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
                 child: Column(
                   children: [
-                  // 1. Notice Board Gradient Container
-                  if (latestNotice != null)
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [AppColors.primaryTeal, AppColors.primaryTealDark],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primaryTeal.withValues(alpha: 0.3),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          )
-                        ],
+                  // 1. Notice Board Minimal Hero Card (Option B)
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [AppColors.primaryTeal, AppColors.primaryTealDark],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                      child: InkWell(
-                        onTap: () => Navigator.pushNamed(context, '/school-notice'),
-                        borderRadius: BorderRadius.circular(20),
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(LucideIcons.megaphone, color: Colors.white, size: 16),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'schoolNotice'.tr(),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primaryTeal.withValues(alpha: 0.3),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        )
+                      ],
+                    ),
+                    child: InkWell(
+                      onTap: () => Navigator.pushNamed(context, '/school-notice'),
+                      borderRadius: BorderRadius.circular(20),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Top Row: 48x48 icon box + Bold "Notice Board" title + unread pill on the right
+                            Row(
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.25),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: const Icon(
+                                    LucideIcons.megaphone,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Text(
+                                    'noticeBoard'.tr(),
                                     style: const TextStyle(
                                       color: Colors.white,
-                                      fontSize: 12,
+                                      fontSize: 18,
                                       fontWeight: FontWeight.bold,
-                                      letterSpacing: 0.5,
+                                      letterSpacing: 0.2,
                                     ),
                                   ),
-                                  const Spacer(),
-                                  if (appState.unreadNoticesCount > 0)
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Text(
-                                        '${appState.unreadNoticesCount} new',
-                                        style: const TextStyle(
-                                          color: AppColors.primaryTeal,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                latestNotice.title,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                latestNotice.body,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.9),
-                                  fontSize: 13,
-                                  height: 1.4,
-                                ),
-                              ),
-                              const SizedBox(height: 16),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'viewAllNotices'.tr(),
-                                    style: const TextStyle(
+                                if (appState.unreadNoticesCount > 0)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
                                       color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
-                                      decoration: TextDecoration.underline,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      '${appState.unreadNoticesCount} new',
+                                      style: const TextStyle(
+                                        color: AppColors.primaryTeal,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                      ),
                                     ),
                                   ),
-                                  const Icon(LucideIcons.arrowRight, color: Colors.white70, size: 16),
-                                ],
-                              ),
-                            ],
-                          ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            // Bottom Row: Single concise definition line with a right arrow
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    'noticeBoardSubtitle'.tr(),
+                                    style: TextStyle(
+                                      color: Colors.white.withValues(alpha: 0.88),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                const Icon(
+                                  LucideIcons.arrowRight,
+                                  color: Colors.white,
+                                  size: 16,
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ),
+                  ),
                   const SizedBox(height: 16),
 
                   // 2. Class Updates & Attendance Rows

@@ -167,6 +167,71 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
   }
 
+  Widget _buildStatChip({
+    required String label,
+    required String value,
+    required Color bg,
+    required Color text,
+    required Color border,
+  }) {
+    return Expanded(
+      child: Container(
+        decoration: BoxDecoration(
+          color: bg,
+          border: Border.all(color: border.withValues(alpha: 0.6)),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Column(
+          children: [
+            Text(
+              label.toUpperCase(),
+              style: TextStyle(
+                color: text,
+                fontSize: 8.5,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.3,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              style: TextStyle(
+                color: text,
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegendItem(Color color, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w600,
+            color: Colors.grey[700],
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showDayDetails(
     BuildContext context,
     int dayNumber,
@@ -362,14 +427,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     final daysOfWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-    final legendItems = [
-      {'status': 'P', 'label': 'present'.tr(), 'color': const Color(0xFF00838F)},
-      {'status': 'A', 'label': 'absent'.tr(), 'color': const Color(0xFFEF5350)},
-      {'status': 'L', 'label': 'Late', 'color': const Color(0xFFF57F17)},
-      {'status': 'H', 'label': 'holiday'.tr(), 'color': const Color(0xFF42A5F5)},
-      {'status': 'W', 'label': 'weekend'.tr(), 'color': const Color(0xFFB0BEC5)},
-    ];
-
     // Compute month grid parameters
     final firstDayOfMonth = DateTime(_selectedYear, _selectedMonth, 1);
     final daysInMonth = DateTime(_selectedYear, _selectedMonth + 1, 0).day;
@@ -378,22 +435,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     final now = DateTime.now();
     final isCurrentMonth = now.year == _selectedYear && now.month == _selectedMonth;
-
-    // Collect all marked attendance days for the month log (newest first)
-    final activityRecords = <Map<String, dynamic>>[];
-    for (int d = daysInMonth; d >= 1; d--) {
-      final key = d.toString();
-      if (attendance.calendar.containsKey(key)) {
-        final dayData = attendance.calendar[key]!;
-        if (dayData.status != '-' && dayData.status != 'W') {
-          activityRecords.add({
-            'day': d,
-            'date': DateTime(_selectedYear, _selectedMonth, d),
-            'dayData': dayData,
-          });
-        }
-      }
-    }
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -553,89 +594,39 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Summary KPI Cards
+              // 4 Stats Chips: PRESENT, ABSENT, HALF DAY / LATE, HOLIDAYS
               Row(
                 children: [
-                  // Present Card
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE0F7FA),
-                        border: Border.all(color: const Color(0xFFB2EBF2)),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'present'.tr().toUpperCase(),
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF00838F),
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const Icon(LucideIcons.checkCircle2, color: Color(0xFF00838F), size: 16),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            '${attendance.summary.present} Days',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFF00838F),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  _buildStatChip(
+                    label: 'present'.tr(),
+                    value: '${attendance.summary.present}',
+                    bg: const Color(0xFFE0F2F1),
+                    text: const Color(0xFF00796B),
+                    border: const Color(0xFFB2DFDB),
                   ),
-                  const SizedBox(width: 12),
-                  // Absent Card
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFEBEE),
-                        border: Border.all(color: const Color(0xFFFFCDD2)),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'absent'.tr().toUpperCase(),
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFFC62828),
-                                  letterSpacing: 0.5,
-                                ),
-                              ),
-                              const Icon(LucideIcons.xCircle, color: Color(0xFFC62828), size: 16),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            '${attendance.summary.absent} Days',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w900,
-                              color: Color(0xFFC62828),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  const SizedBox(width: 8),
+                  _buildStatChip(
+                    label: 'absent'.tr(),
+                    value: '${attendance.summary.absent}',
+                    bg: const Color(0xFFFFEBEE),
+                    text: const Color(0xFFE11D48),
+                    border: const Color(0xFFFFCDD2),
+                  ),
+                  const SizedBox(width: 8),
+                  _buildStatChip(
+                    label: 'halfDay'.tr(),
+                    value: '${attendance.summary.halfDay + attendance.summary.late}',
+                    bg: const Color(0xFFFFF3E0),
+                    text: const Color(0xFFEA580C),
+                    border: const Color(0xFFFFE0B2),
+                  ),
+                  const SizedBox(width: 8),
+                  _buildStatChip(
+                    label: 'holiday'.tr(),
+                    value: '${attendance.summary.holiday}',
+                    bg: const Color(0xFFECEFF1),
+                    text: const Color(0xFF455A64),
+                    border: const Color(0xFFCFD8DC),
                   ),
                 ],
               ),
@@ -661,38 +652,23 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                     // Legend Row
                     Container(
                       decoration: BoxDecoration(
-                        color: Colors.grey[50],
+                        color: const Color(0xFFF9FAFB),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[200]!),
+                        border: Border.all(color: const Color(0xFFF3F4F6)),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                       margin: const EdgeInsets.only(bottom: 16),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: legendItems.map((item) {
-                          return Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 8,
-                                height: 8,
-                                decoration: BoxDecoration(
-                                  color: item['color'] as Color,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                item['label'] as String,
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.grey[700],
-                                ),
-                              ),
-                            ],
-                          );
-                        }).toList(),
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        spacing: 12,
+                        runSpacing: 6,
+                        children: [
+                          _buildLegendItem(const Color(0xFF00838F), 'present'.tr()),
+                          _buildLegendItem(const Color(0xFFC62828), 'absent'.tr()),
+                          _buildLegendItem(const Color(0xFFF57F17), 'Late'),
+                          _buildLegendItem(const Color(0xFF1565C0), 'holiday'.tr()),
+                          _buildLegendItem(const Color(0xFF9E9E9E), 'weekend'.tr()),
+                        ],
                       ),
                     ),
 
@@ -825,156 +801,121 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Monthly Details / Absences Section
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Monthly Activity',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textMain,
-                    ),
-                  ),
-                  Text(
-                    '${attendance.summary.totalWorkingDays} Working Days',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppColors.textMuted,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              if (activityRecords.isNotEmpty) ...[
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: activityRecords.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 8),
-                  itemBuilder: (context, idx) {
-                    final item = activityRecords[idx];
-                    final date = item['date'] as DateTime;
-                    final dayData = item['dayData'] as AttendanceCalendarDay;
-                    final status = dayData.status;
-
-                    IconData statusIcon = LucideIcons.checkCircle2;
-                    if (status == 'A') {
-                      statusIcon = LucideIcons.xCircle;
-                    } else if (status == 'L') {
-                      statusIcon = LucideIcons.clock;
-                    } else if (status == 'HD') {
-                      statusIcon = LucideIcons.pieChart;
-                    } else if (status == 'H') {
-                      statusIcon = LucideIcons.calendar;
-                    }
-
-                    return Container(
+              // Summary & Progress Card (Concise Teacher Duty Diary style)
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: AppColors.border),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x06000000),
+                      blurRadius: 8,
+                      offset: Offset(0, 2),
+                    )
+                  ],
+                ),
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 44,
+                      height: 44,
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: AppColors.border),
+                        color: AppColors.primaryTeal.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                      child: Row(
+                      child: const Icon(
+                        LucideIcons.clipboardCheck,
+                        color: AppColors.primaryTeal,
+                        size: 22,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: _getStatusBadgeColor(status).withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Icon(
-                              statusIcon,
-                              color: _getStatusBadgeColor(status),
-                              size: 18,
+                          Text(
+                            'Present for ${attendance.summary.present} out of ${attendance.summary.totalWorkingDays} working days',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.textMain,
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  DateFormat('EEEE, d MMMM').format(date),
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppColors.textMain,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  dayData.reason.isNotEmpty
-                                      ? dayData.reason
-                                      : (status == 'P'
-                                          ? 'Attended all scheduled classes'
-                                          : _getStatusFullName(status)),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: dayData.reason.isNotEmpty
-                                        ? AppColors.textMain
-                                        : AppColors.textMuted,
-                                    fontStyle: dayData.reason.isNotEmpty
-                                        ? FontStyle.normal
-                                        : FontStyle.italic,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: _getStatusBadgeColor(status).withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              _getStatusFullName(status),
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: _getStatusBadgeColor(status),
-                              ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Monthly attendance: ${attendance.summary.attendancePercentage}%',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textMuted,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
                         ],
                       ),
-                    );
-                  },
+                    ),
+                  ],
                 ),
-              ] else ...[
+              ),
+              const SizedBox(height: 12),
+
+              // Contextual Alert or Perfect Attendance Card
+              if (attendance.summary.absent > 0)
                 Container(
-                  width: double.infinity,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF0FDF4),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: const Color(0xFFBBF7D0)),
+                    color: const Color(0xFFFFF3E0),
+                    border: Border.all(color: const Color(0xFFFFE0B2)),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  padding: const EdgeInsets.all(16),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(LucideIcons.partyPopper, color: Color(0xFF16A34A), size: 20),
+                      const Icon(LucideIcons.info, color: Color(0xFFEA580C), size: 20),
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          attendance.summary.absent == 0 && attendance.summary.present > 0
-                              ? 'Perfect Attendance! No absences this month.'
-                              : 'No leaves or absences recorded for this month.',
+                          '${attendance.summary.absent} absence(s) recorded. Contact School Admin or Class Teacher for any discrepancies.',
                           style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFC2410C),
+                            height: 1.35,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0FDF4),
+                    border: Border.all(color: const Color(0xFFBBF7D0)),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  padding: const EdgeInsets.all(16),
+                  child: const Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(LucideIcons.badgeCheck, color: Color(0xFF16A34A), size: 20),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Full attendance maintained this month with zero absences recorded.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
                             color: Color(0xFF15803D),
+                            height: 1.35,
                           ),
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
               const SizedBox(height: 24),
             ],
           ),

@@ -49,6 +49,19 @@ class ParentApiService {
     throw Exception('Failed to load notices');
   }
 
+  /// Fetch class updates (homework & classwork) for student
+  static Future<List<dynamic>> getChildClassUpdates(String studentId) async {
+    try {
+      final response = await ApiService.get('/parent/children/$studentId/class-updates');
+      if (response is List) {
+        return response;
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
   /// Mark notice / broadcast as read
   static Future<bool> markNoticeRead(String noticeId) async {
     try {

@@ -89,23 +89,54 @@ class ProfileScreen extends StatelessWidget {
                               fit: BoxFit.cover,
                             ),
                           )
-                        : Container(
-                            width: 56,
-                            height: 56,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white,
-                            ),
-                            alignment: Alignment.center,
-                            child: Text(
-                              currentChild.name.substring(0, 1).toUpperCase(),
-                              style: const TextStyle(
-                                color: AppColors.primaryTeal,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 24,
-                              ),
-                            ),
-                          ),
+                        : (currentChild.photoUrl != null && currentChild.photoUrl!.isNotEmpty
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(32),
+                                child: Image.network(
+                                  currentChild.photoUrl!,
+                                  width: 58,
+                                  height: 58,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) => Container(
+                                    width: 56,
+                                    height: 56,
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Colors.white,
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      currentChild.name.isNotEmpty
+                                          ? currentChild.name.substring(0, 1).toUpperCase()
+                                          : 'S',
+                                      style: const TextStyle(
+                                        color: AppColors.primaryTeal,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 24,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              )
+                            : Container(
+                                width: 56,
+                                height: 56,
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.white,
+                                ),
+                                alignment: Alignment.center,
+                                child: Text(
+                                  currentChild.name.isNotEmpty
+                                      ? currentChild.name.substring(0, 1).toUpperCase()
+                                      : 'S',
+                                  style: const TextStyle(
+                                    color: AppColors.primaryTeal,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 24,
+                                  ),
+                                ),
+                              )),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -130,7 +161,7 @@ class ProfileScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 1),
                         Text(
-                          '${'rollNo'.tr()}: ${currentChild.studentId}',
+                          '${'rollNo'.tr()}: ${(currentChild.rollNumber != null && currentChild.rollNumber!.isNotEmpty) ? currentChild.rollNumber : (currentChild.enrollmentNo.isNotEmpty && currentChild.enrollmentNo != '—' ? currentChild.enrollmentNo : '—')}',
                           style: const TextStyle(
                             color: AppColors.textMuted,
                             fontSize: 11,

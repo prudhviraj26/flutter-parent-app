@@ -6,6 +6,7 @@ import 'package:easy_localization/easy_localization.dart';
 import '../state/app_state.dart';
 import '../models/models.dart';
 import '../constants/colors.dart';
+import '../widgets/coming_soon_placeholder.dart';
 export 'health_records_screen.dart';
 export 'holidays_screen.dart';
 
@@ -67,76 +68,18 @@ class MyTeachersScreen extends StatelessWidget {
 
 // 3. Health Records Screen is now fully implemented in lib/screens/health_records_screen.dart
 
-
 // 4. Library Screen
 class LibraryScreen extends StatelessWidget {
   const LibraryScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final appState = Provider.of<AppState>(context);
-    final list = appState.books;
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text('library'.tr(), style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: list.isEmpty
-          ? Center(child: Text('noBooksIssued'.tr(), style: const TextStyle(color: AppColors.textMuted)))
-          : ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-              itemCount: list.length,
-              itemBuilder: (context, idx) {
-                final item = list[idx];
-                final isIssued = item.status == 'Issued';
-                return Card(
-                  color: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(item.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textMain)),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: isIssued ? AppColors.primaryTeal.withValues(alpha: 0.1) : AppColors.secondaryOrange.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                isIssued ? 'issued'.tr() : 'reserved'.tr(),
-                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isIssued ? AppColors.primaryTeal : AppColors.secondaryOrange),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 2),
-                        Text(item.author, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                        const SizedBox(height: 12),
-                        if (isIssued) ...[
-                          Text('${'issueDate'.tr()}: ${item.issueDate}', style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                          Text('${'dueDate'.tr()}: ${item.dueDate}', style: const TextStyle(color: AppColors.error, fontSize: 11, fontWeight: FontWeight.bold)),
-                        ] else ...[
-                          Text('${'reserveDate'.tr()}: ${item.reserveDate}', style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                        ],
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
+    return ComingSoonScreen(
+      title: 'library'.tr(),
+      icon: LucideIcons.book,
+      featureName: 'Digital Library Portal',
+      description: 'The school library catalog is being digitized. You will soon be able to browse available books, track renewal due dates, and reserve reading materials directly from the app.',
+      badgeText: 'Coming Soon',
     );
   }
 }
@@ -147,81 +90,12 @@ class BusTrackingScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text('busTracking'.tr(), style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        child: Column(
-          children: [
-            Container(
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      const Icon(LucideIcons.bus, color: AppColors.primaryTeal, size: 24),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('${'routeNo'.tr()} 12', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textMain)),
-                          Text('${'driverName'.tr()}: Mr. Santosh Shinde', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const Divider(color: AppColors.border, height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('currentLocation'.tr(), style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
-                      Text('nearSiddhiTemple'.tr(), style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold, fontSize: 13)),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('eta'.tr(), style: const TextStyle(color: AppColors.textMuted, fontSize: 13)),
-                      Text('10 ${'minutes'.tr()}', style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.bold, fontSize: 13)),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            // Mock map placeholder
-            Expanded(
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey[200],
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppColors.border),
-                ),
-                alignment: Alignment.center,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(LucideIcons.mapPin, color: AppColors.primaryTeal, size: 48),
-                    const SizedBox(height: 12),
-                    Text('mapViewerPlaceholder'.tr(), style: const TextStyle(color: AppColors.textMuted, fontWeight: FontWeight.w500)),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return ComingSoonScreen(
+      title: 'busTracking'.tr(),
+      icon: LucideIcons.bus,
+      featureName: 'Real-Time Bus Tracking',
+      description: 'We are actively integrating real-time GPS hardware with school transport. Soon, you will be able to track your child\'s bus location, route stops, and arrival times live.',
+      badgeText: 'In Development',
     );
   }
 }
@@ -232,107 +106,29 @@ class GalleryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final appState = Provider.of<AppState>(context);
-    final albums = appState.albums;
-
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text('gallery'.tr(), style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        itemCount: albums.length,
-        itemBuilder: (context, idx) {
-          final album = albums[idx];
-          return Card(
-            color: Colors.white,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            margin: const EdgeInsets.only(bottom: 16),
-            child: InkWell(
-              onTap: () {
-                // Navigate to detail view
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => AlbumDetailScreen(album: album)),
-                );
-              },
-              borderRadius: BorderRadius.circular(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    height: 150,
-                    decoration: BoxDecoration(
-                      color: AppColors.primaryTeal.withValues(alpha: 0.1),
-                      borderRadius: const BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Icon(LucideIcons.image, size: 48, color: AppColors.primaryTeal),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(album.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textMain)),
-                        Text('${album.photoCount} ${'photos'.tr()}', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
+    return ComingSoonScreen(
+      title: 'gallery'.tr(),
+      icon: LucideIcons.image,
+      featureName: 'School Photo & Video Gallery',
+      description: 'High-resolution photo albums from school functions, celebrations, and sports events will be published here directly by the school media coordinator.',
+      badgeText: 'Coming Soon',
     );
   }
 }
 
 class AlbumDetailScreen extends StatelessWidget {
-  final Album album;
+  final Album? album;
 
-  const AlbumDetailScreen({super.key, required this.album});
+  const AlbumDetailScreen({super.key, this.album});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(album.title, style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: GridView.builder(
-        padding: const EdgeInsets.all(20),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 3,
-          crossAxisSpacing: 8,
-          mainAxisSpacing: 8,
-        ),
-        itemCount: album.photos.length,
-        itemBuilder: (context, idx) {
-          return Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: const Icon(LucideIcons.image, color: AppColors.primaryTeal, size: 24),
-          );
-        },
-      ),
+    return ComingSoonScreen(
+      title: album?.title ?? 'gallery'.tr(),
+      icon: LucideIcons.image,
+      featureName: 'Event Gallery',
+      description: 'High-resolution photo albums from school functions and celebrations will be published here directly by the school.',
+      badgeText: 'Coming Soon',
     );
   }
 }
@@ -343,27 +139,12 @@ class ExamResultsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text('examResults'.tr(), style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(LucideIcons.award, color: AppColors.primaryTeal, size: 64),
-            const SizedBox(height: 16),
-            Text('noResultsReleased'.tr(), style: const TextStyle(color: AppColors.textMuted, fontSize: 14)),
-          ],
-        ),
-      ),
+    return ComingSoonScreen(
+      title: 'examResults'.tr(),
+      icon: LucideIcons.award,
+      featureName: 'Report Cards & Exam Results',
+      description: 'Term examination mark sheets, progress evaluations, and official digital report cards will be published here as soon as they are finalized by teachers.',
+      badgeText: 'Coming Soon',
     );
   }
 }
@@ -374,27 +155,12 @@ class ExamDetailsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text('examDetails'.tr(), style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(LucideIcons.fileText, color: AppColors.secondaryOrange, size: 64),
-            const SizedBox(height: 16),
-            Text('noUpcomingExams'.tr(), style: const TextStyle(color: AppColors.textMuted, fontSize: 14)),
-          ],
-        ),
-      ),
+    return ComingSoonScreen(
+      title: 'examDetails'.tr(),
+      icon: LucideIcons.fileText,
+      featureName: 'Exam Schedules & Timetables',
+      description: 'Upcoming unit tests, mid-term timetables, syllabus portions, and seating arrangements will be available here prior to examination dates.',
+      badgeText: 'Coming Soon',
     );
   }
 }

@@ -43,7 +43,7 @@ class AllSectionsScreen extends StatelessWidget {
       SectionGroup(
         title: 'communication'.tr(),
         features: [
-          FeatureItem(name: 'schoolNotice'.tr(), icon: LucideIcons.megaphone, path: '/school-notice', color: AppColors.primaryTeal),
+          FeatureItem(name: 'noticeBoard'.tr(), icon: LucideIcons.megaphone, path: '/school-notice', color: AppColors.primaryTeal),
           FeatureItem(
             name: 'classWork'.tr(),
             icon: LucideIcons.bookOpen,

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
 import '../models/models.dart';
 import '../services/api_service.dart';
 import '../services/parent_api_service.dart';
@@ -72,10 +73,15 @@ class AppState extends ChangeNotifier {
   String _schoolName = '';
   String get currentSchoolName => _schoolName.isNotEmpty ? _schoolName : 'Veyho School';
 
+  String? _schoolLogoUrl;
+  String? get schoolLogoUrl => _schoolLogoUrl;
+  String? _schoolLogoBase64;
+  String? get schoolLogoBase64 => _schoolLogoBase64;
+
   SchoolConfig get schoolConfig => SchoolConfig(
     name: currentSchoolName,
     nameMarathi: currentSchoolName,
-    logo: '',
+    logo: _schoolLogoUrl ?? '',
   );
 
   final Map<String, String> veyhoBranding = {
@@ -96,11 +102,13 @@ class AppState extends ChangeNotifier {
     // Load language preference
     _language = _prefs?.getString('veyho_app_language') ?? 'en';
 
-    // Load cached school name
+    // Load cached school name & logo
     final cachedSchool = _prefs?.getString('veyho_cached_school_name');
     if (cachedSchool != null && cachedSchool.isNotEmpty) {
       _schoolName = cachedSchool;
     }
+    _schoolLogoUrl = _prefs?.getString('veyho_cached_school_logo_url');
+    _schoolLogoBase64 = _prefs?.getString('veyho_cached_school_logo');
 
     // Load cached children for instant rendering on cold start
     final cachedChildrenJson = _prefs?.getString('veyho_cached_children');
@@ -159,6 +167,25 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  /// Download an image once and cache it as base64 in local device storage
+  Future<void> _cacheImageLocally(
+    String url,
+    String prefKey,
+    void Function(String base64Data) onCached,
+  ) async {
+    try {
+      final res = await http.get(Uri.parse(url));
+      if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+        final b64 = base64Encode(res.bodyBytes);
+        await _prefs?.setString(prefKey, b64);
+        onCached(b64);
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error caching image locally ($prefKey): $e');
+    }
+  }
+
   bool _isLoadingLive = false;
   bool get isLoadingLive => _isLoadingLive;
 
@@ -172,6 +199,16 @@ class AppState extends ChangeNotifier {
       if (profile['schoolName'] != null && profile['schoolName'].toString().isNotEmpty) {
         _schoolName = profile['schoolName'].toString();
         await _prefs?.setString('veyho_cached_school_name', _schoolName);
+      }
+
+      if (profile['schoolLogoUrl'] != null && profile['schoolLogoUrl'].toString().isNotEmpty) {
+        _schoolLogoUrl = profile['schoolLogoUrl'].toString();
+        await _prefs?.setString('veyho_cached_school_logo_url', _schoolLogoUrl!);
+        if (_schoolLogoBase64 == null) {
+          _cacheImageLocally(_schoolLogoUrl!, 'veyho_cached_school_logo', (b64) {
+            _schoolLogoBase64 = b64;
+          });
+        }
       }
 
       if (profile['children'] != null && (profile['children'] as List).isNotEmpty) {
@@ -205,6 +242,8 @@ class AppState extends ChangeNotifier {
             apaarId: c['apaarId']?.toString() ?? '—',
             penNo: c['penNumber']?.toString() ?? '—',
             studentId: c['id'].toString(),
+            photoUrl: c['photoUrl'] as String?,
+            rollNumber: c['rollNumber'] as String?,
           );
         }).toList();
 
@@ -213,6 +252,15 @@ class AppState extends ChangeNotifier {
           'veyho_cached_children',
           json.encode(_children.map((c) => c.toJson()).toList()),
         );
+
+        // Cache child photos locally
+        for (var child in _children) {
+          if (child.photoUrl != null && child.photoUrl!.isNotEmpty && !_childAvatars.containsKey(child.id)) {
+            _cacheImageLocally(child.photoUrl!, 'veyho_child_avatar_${child.id}', (b64) {
+              _childAvatars[child.id] = b64;
+            });
+          }
+        }
 
         final savedChildId = _prefs?.getString('veyho_active_child_id');
         final idx = _children.indexWhere((c) => c.id == savedChildId);
@@ -244,6 +292,7 @@ class AppState extends ChangeNotifier {
         ParentApiService.getChildTeachers(studentId),
         ParentApiService.getChildEvents(studentId),
         ParentApiService.getChildHealth(studentId).catchError((_) => <String, dynamic>{}),
+        ParentApiService.getChildClassUpdates(studentId).catchError((_) => <dynamic>[]),
       ]);
 
       // 1. Attendance
@@ -387,6 +436,18 @@ class AppState extends ChangeNotifier {
         }
       } catch (e) {
         debugPrint('Parse health record note: $e');
+      }
+
+      // 7. Class Updates (Homework & Classwork)
+      try {
+        final updatesRaw = results[6] as List<dynamic>? ?? [];
+        final parsedUpdates = updatesRaw
+            .map((u) => ClassUpdate.fromJson(u as Map<String, dynamic>))
+            .toList();
+        parsedUpdates.sort((a, b) => b.dateTime.compareTo(a.dateTime));
+        _classUpdatesDb[studentId] = parsedUpdates;
+      } catch (e) {
+        debugPrint('Parse class updates note: $e');
       }
 
       notifyListeners();
@@ -611,11 +672,19 @@ class AppState extends ChangeNotifier {
     _loggedIn = false;
     _mobile = null;
     _schoolName = '';
+    _schoolLogoUrl = null;
+    _schoolLogoBase64 = null;
+    for (var child in _children) {
+      await _prefs?.remove('veyho_child_avatar_${child.id}');
+    }
+    _childAvatars.clear();
     _children = [];
     _currentChild = null;
     await ApiService.clearTokens();
     await _prefs?.remove('veyho_parent_user');
     await _prefs?.remove('veyho_cached_school_name');
+    await _prefs?.remove('veyho_cached_school_logo');
+    await _prefs?.remove('veyho_cached_school_logo_url');
     await _prefs?.remove('veyho_cached_children');
     await _prefs?.remove('veyho_active_child_id');
     notifyListeners();
@@ -770,6 +839,27 @@ class AppState extends ChangeNotifier {
       debugPrint('Error fetching notices: $e');
     } finally {
       _isNoticesLoading = false;
+      notifyListeners();
+    }
+  }
+
+  bool _isClassUpdatesLoading = false;
+  bool get isClassUpdatesLoading => _isClassUpdatesLoading;
+
+  Future<void> fetchClassUpdates(String studentId) async {
+    _isClassUpdatesLoading = true;
+    notifyListeners();
+    try {
+      final list = await ParentApiService.getChildClassUpdates(studentId);
+      final parsed = list
+          .map<ClassUpdate>((u) => ClassUpdate.fromJson(u as Map<String, dynamic>))
+          .toList();
+      parsed.sort((a, b) => b.dateTime.compareTo(a.dateTime));
+      _classUpdatesDb[studentId] = parsed;
+    } catch (e) {
+      debugPrint('Error fetching class updates: $e');
+    } finally {
+      _isClassUpdatesLoading = false;
       notifyListeners();
     }
   }
@@ -929,36 +1019,53 @@ class AppState extends ChangeNotifier {
       Notice(
         id: '1',
         source: 'Principal Office',
-        title: 'Parent-Teacher Meeting',
-        date: '2026-05-15',
-        time: '10:00 AM',
-        body: 'Dear Parents, We are organizing a Parent-Teacher Meeting on May 15, 2026 at 10:00 AM. Please make sure to attend and discuss your child\'s progress with their teachers.',
-        cta: NoticeCta(label: 'View Event', action: 'event'),
+        title: 'Annual Day - Important Information',
+        date: '2026-10-25',
+        time: '09:00 AM',
+        body: 'Event schedule, reporting time and participation details for the upcoming Annual Day function.',
+        category: 'School Notice',
+        publishedAt: '2026-10-25T09:00:00Z',
       ),
       Notice(
         id: '2',
-        source: 'Accounts Department',
-        title: 'Fee Payment Reminder',
-        date: '2026-05-10',
-        time: '09:00 AM',
-        body: 'This is a reminder to pay the pending school fees before the due date. Late payment will attract a fine of ₹100 per day.',
-        cta: NoticeCta(label: 'View Fees', action: 'fees'),
+        source: 'Class Teacher',
+        title: 'Orange Colour Day',
+        date: '2026-10-24',
+        time: '11:30 AM',
+        body: 'Children to come in orange dress and bring orange coloured props or fruit for class activities.',
+        category: 'Class Notice',
+        publishedAt: '2026-10-24T11:30:00Z',
       ),
       Notice(
         id: '3',
-        source: 'Sports Department',
-        title: 'Annual Sports Day',
-        date: '2026-05-20',
-        time: '08:00 AM',
-        body: 'Annual Sports Day will be held on May 20, 2026. All students are required to participate. Parents are cordially invited to attend.',
+        source: 'Administration',
+        title: 'Public Holiday - Gandhi Jayanti',
+        date: '2026-10-02',
+        time: '10:00 AM',
+        body: 'School will remain closed on 2nd October on account of Gandhi Jayanti.',
+        category: 'School Notice',
+        publishedAt: '2026-10-02T10:00:00Z',
       ),
       Notice(
         id: '4',
-        source: 'Administration',
-        title: 'Summer Vacation Notice',
-        date: '2026-05-25',
-        time: '12:00 PM',
-        body: 'School will be closed for summer vacation from June 1 to June 30, 2026. School will reopen on July 1, 2026.',
+        source: 'Art Teacher',
+        title: 'Drawing Competition',
+        date: '2026-09-28',
+        time: '02:00 PM',
+        body: 'Theme: My Dream World. Submit your creative entries to class teacher by 30th Sep.',
+        category: 'Class Notice',
+        publishedAt: '2026-09-28T14:00:00Z',
+      ),
+      Notice(
+        id: '5',
+        source: 'Principal Office',
+        title: 'Parent-Teacher Meeting',
+        date: '2026-09-15',
+        time: '10:00 AM',
+        body: 'Dear Parents, We are organizing a Parent-Teacher Meeting to discuss your child\'s academic progress.',
+        category: 'School Notice',
+        publishedAt: '2026-09-15T10:00:00Z',
+        cta: NoticeCta(label: 'View Event', action: 'event'),
       ),
     ];
 

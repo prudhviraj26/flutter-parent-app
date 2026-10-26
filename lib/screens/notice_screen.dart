@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -10,6 +9,7 @@ import '../constants/colors.dart';
 
 enum NoticeFilterType {
   all,
+  unread,
   school,
   classNotice,
 }
@@ -24,6 +24,14 @@ class NoticeScreen extends StatefulWidget {
 class _NoticeScreenState extends State<NoticeScreen> {
   String _searchTerm = '';
   NoticeFilterType _selectedFilter = NoticeFilterType.all;
+  bool _isSearchOpen = false;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -43,6 +51,8 @@ class _NoticeScreenState extends State<NoticeScreen> {
     switch (filter) {
       case NoticeFilterType.all:
         return 'allNotices'.tr();
+      case NoticeFilterType.unread:
+        return 'Unread';
       case NoticeFilterType.school:
         return 'schoolNotice'.tr();
       case NoticeFilterType.classNotice:
@@ -54,21 +64,12 @@ class _NoticeScreenState extends State<NoticeScreen> {
     switch (filter) {
       case NoticeFilterType.all:
         return LucideIcons.layers;
+      case NoticeFilterType.unread:
+        return LucideIcons.sparkles;
       case NoticeFilterType.school:
         return LucideIcons.megaphone;
       case NoticeFilterType.classNotice:
         return LucideIcons.users;
-    }
-  }
-
-  Color _getFilterColor(NoticeFilterType filter) {
-    switch (filter) {
-      case NoticeFilterType.all:
-        return AppColors.primaryTeal;
-      case NoticeFilterType.school:
-        return const Color(0xFFEA580C);
-      case NoticeFilterType.classNotice:
-        return const Color(0xFF7C3AED);
     }
   }
 
@@ -95,201 +96,104 @@ class _NoticeScreenState extends State<NoticeScreen> {
     return '$catName • $timeOrDate';
   }
 
-  Widget _buildFilterTrigger() {
-    return GestureDetector(
-      onTap: () => _showFilterBottomSheet(context),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x10000000),
-              blurRadius: 8,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: _getFilterColor(_selectedFilter).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                _getFilterIcon(_selectedFilter),
-                size: 16,
-                color: _getFilterColor(_selectedFilter),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                _getFilterLabel(_selectedFilter),
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textMain,
-                ),
-              ),
-            ),
-            const Icon(
-              LucideIcons.chevronDown,
-              size: 18,
-              color: AppColors.textMuted,
-            ),
-          ],
-        ),
+  Widget _buildFilterChips(List<Notice> allNotices, AppState appState) {
+    final unreadCount = allNotices.where((n) => !appState.isNoticeRead(n.id)).length;
+    final schoolUnread = allNotices.where((n) => n.isSchoolNotice && !appState.isNoticeRead(n.id)).length;
+    final classUnread = allNotices.where((n) => n.isClassNotice && !appState.isNoticeRead(n.id)).length;
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        children: [
+          _buildChipItem(
+            filter: NoticeFilterType.all,
+            label: 'All',
+          ),
+          const SizedBox(width: 8),
+          _buildChipItem(
+            filter: NoticeFilterType.unread,
+            label: 'Unread',
+            count: unreadCount > 0 ? unreadCount : null,
+          ),
+          const SizedBox(width: 8),
+          _buildChipItem(
+            filter: NoticeFilterType.school,
+            label: 'schoolNotice'.tr(),
+            count: schoolUnread > 0 ? schoolUnread : null,
+          ),
+          const SizedBox(width: 8),
+          _buildChipItem(
+            filter: NoticeFilterType.classNotice,
+            label: 'classNotice'.tr(),
+            count: classUnread > 0 ? classUnread : null,
+          ),
+        ],
       ),
     );
   }
 
-  void _showFilterBottomSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (BuildContext sheetContext) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(sheetContext).padding.bottom + 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Drag Handle
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD1D5DB),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Header Row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'selectCategory'.tr(),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textMain,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(sheetContext),
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFF3F4F6),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(LucideIcons.x, size: 16, color: AppColors.textMuted),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Options
-              _buildBottomSheetOption(
-                sheetContext: sheetContext,
-                filter: NoticeFilterType.all,
-                title: 'allNotices'.tr(),
-                icon: LucideIcons.layers,
-                iconColor: AppColors.primaryTeal,
-              ),
-              const SizedBox(height: 8),
-              _buildBottomSheetOption(
-                sheetContext: sheetContext,
-                filter: NoticeFilterType.school,
-                title: 'schoolNotice'.tr(),
-                icon: LucideIcons.megaphone,
-                iconColor: const Color(0xFFEA580C),
-              ),
-              const SizedBox(height: 8),
-              _buildBottomSheetOption(
-                sheetContext: sheetContext,
-                filter: NoticeFilterType.classNotice,
-                title: 'classNotice'.tr(),
-                icon: LucideIcons.users,
-                iconColor: const Color(0xFF7C3AED),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildBottomSheetOption({
-    required BuildContext sheetContext,
+  Widget _buildChipItem({
     required NoticeFilterType filter,
-    required String title,
-    required IconData icon,
-    required Color iconColor,
+    required String label,
+    int? count,
   }) {
     final isSelected = _selectedFilter == filter;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            _selectedFilter = filter;
-          });
-          Navigator.pop(sheetContext);
-        },
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected ? iconColor.withValues(alpha: 0.08) : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isSelected ? iconColor.withValues(alpha: 0.3) : const Color(0xFFE5E7EB),
-              width: isSelected ? 1.5 : 1.0,
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedFilter = filter;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? AppColors.primaryTeal : Colors.white,
+              ),
             ),
-          ),
-          child: Row(
-            children: [
+            if (count != null && count > 0) ...[
+              const SizedBox(width: 6),
               Container(
-                padding: const EdgeInsets.all(7),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                 decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.12),
+                  color: isSelected
+                      ? const Color(0xFFEA580C)
+                      : const Color(0xFFF97316),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, size: 18, color: iconColor),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
                 child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                    color: isSelected ? AppColors.textMain : const Color(0xFF4B5563),
+                  '$count',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
                 ),
               ),
-              if (isSelected)
-                Icon(
-                  LucideIcons.check,
-                  size: 20,
-                  color: iconColor,
-                ),
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -307,137 +211,192 @@ class _NoticeScreenState extends State<NoticeScreen> {
       padding: const EdgeInsets.only(bottom: 12),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isUnread ? Colors.white : const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isUnread
-                ? themeColor.withValues(alpha: 0.45)
-                : AppColors.border,
-            width: isUnread ? 1.5 : 1.0,
+                ? themeColor.withValues(alpha: 0.35)
+                : const Color(0xFFE2E8F0),
+            width: isUnread ? 1.2 : 1.0,
           ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x08000000),
-              blurRadius: 6,
-              offset: Offset(0, 3),
-            )
-          ],
+          boxShadow: isUnread
+              ? [
+                  BoxShadow(
+                    color: themeColor.withValues(alpha: 0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                  const BoxShadow(
+                    color: Color(0x06000000),
+                    blurRadius: 4,
+                    offset: Offset(0, 1),
+                  ),
+                ]
+              : const [
+                  BoxShadow(
+                    color: Color(0x04000000),
+                    blurRadius: 3,
+                    offset: Offset(0, 1),
+                  ),
+                ],
         ),
-        child: InkWell(
-          onTap: () {
-            appState.markNoticeAsRead(notice.id);
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => NoticeDetailScreen(notice: notice),
-              ),
-            );
-          },
+        child: ClipRRect(
           borderRadius: BorderRadius.circular(18),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: bgIconColor,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: borderIconColor),
+          child: Stack(
+            children: [
+              // 4.5px vertical accent stripe on left edge for unread notices
+              if (isUnread)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 4.5,
+                    color: themeColor,
+                  ),
+                ),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () {
+                    appState.markNoticeAsRead(notice.id);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => NoticeDetailScreen(notice: notice),
                       ),
-                      child: Icon(iconData, color: themeColor, size: 20),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Text(
-                                _formatNoticeSubtitle(notice),
-                                style: TextStyle(
-                                  color: themeColor,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
+                    );
+                  },
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(isUnread ? 18 : 16, 16, 16, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: isUnread ? bgIconColor : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isUnread ? borderIconColor : const Color(0xFFE2E8F0),
                                 ),
                               ),
-                              if (isUnread) ...[
-                                const SizedBox(width: 6),
-                                Container(
-                                  width: 6,
-                                  height: 6,
-                                  decoration: BoxDecoration(
-                                    color: themeColor,
-                                    shape: BoxShape.circle,
+                              child: Icon(
+                                iconData,
+                                color: isUnread ? themeColor : const Color(0xFF64748B),
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        _formatNoticeSubtitle(notice),
+                                        style: TextStyle(
+                                          color: isUnread ? themeColor : const Color(0xFF64748B),
+                                          fontSize: 11,
+                                          fontWeight: isUnread ? FontWeight.bold : FontWeight.w600,
+                                        ),
+                                      ),
+                                      if (isUnread) ...[
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                          decoration: BoxDecoration(
+                                            color: themeColor.withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(6),
+                                            border: Border.all(
+                                              color: themeColor.withValues(alpha: 0.3),
+                                              width: 0.8,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'NEW',
+                                            style: TextStyle(
+                                              color: themeColor,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w800,
+                                              letterSpacing: 0.5,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    notice.title,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: isUnread ? FontWeight.w800 : FontWeight.w600,
+                                      color: isUnread ? AppColors.textMain : const Color(0xFF334155),
+                                      height: 1.25,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Icon(
+                              LucideIcons.chevronRight,
+                              size: 16,
+                              color: isUnread ? AppColors.textMuted : const Color(0xFF94A3B8),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          notice.body,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: isUnread ? const Color(0xFF4B5563) : const Color(0xFF64748B),
+                            fontSize: 13,
+                            height: 1.45,
+                          ),
+                        ),
+                        if (notice.attachments.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEFF6FF),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFFBFDBFE)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(LucideIcons.paperclip, size: 12, color: Color(0xFF1D4ED8)),
+                                const SizedBox(width: 4),
+                                Text(
+                                  '${notice.attachments.length} ${notice.attachments.length == 1 ? 'file' : 'files'} attached',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: Color(0xFF1D4ED8),
                                   ),
                                 ),
                               ],
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            notice.title,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: isUnread ? FontWeight.w800 : FontWeight.w600,
-                              color: AppColors.textMain,
-                              height: 1.25,
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    const Icon(LucideIcons.chevronRight, size: 16, color: AppColors.textMuted),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Text(
-                  notice.body,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Color(0xFF4B5563),
-                    fontSize: 13,
-                    height: 1.45,
-                  ),
-                ),
-                if (notice.attachments.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFBFDBFE)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(LucideIcons.paperclip, size: 12, color: Color(0xFF1D4ED8)),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${notice.attachments.length} ${notice.attachments.length == 1 ? 'file' : 'files'} attached',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF1D4ED8),
-                          ),
-                        ),
                       ],
                     ),
                   ),
-                ],
-              ],
-            ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -449,14 +408,15 @@ class _NoticeScreenState extends State<NoticeScreen> {
     final appState = Provider.of<AppState>(context);
     final allNotices = appState.notices;
     final currentChild = appState.currentChild;
-    final childAvatar = appState.childAvatars[currentChild.id];
     final isLoading = appState.isNoticesLoading;
 
-    // 1. Filter by selected category
+    // 1. Filter by selected category / unread status
     final categoryFiltered = allNotices.where((notice) {
       switch (_selectedFilter) {
         case NoticeFilterType.all:
           return true;
+        case NoticeFilterType.unread:
+          return !appState.isNoticeRead(notice.id);
         case NoticeFilterType.school:
           return notice.isSchoolNotice;
         case NoticeFilterType.classNotice:
@@ -483,7 +443,7 @@ class _NoticeScreenState extends State<NoticeScreen> {
       backgroundColor: AppColors.background,
       body: Column(
         children: [
-          // Header & Search
+          // Header (Compact, modern gradient container)
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -492,167 +452,190 @@ class _NoticeScreenState extends State<NoticeScreen> {
                 end: Alignment.bottomRight,
               ),
             ),
-            padding: const EdgeInsets.fromLTRB(20, 52, 20, 18),
+            padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 8, 16, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Top Bar
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        GestureDetector(
-                          onTap: () => Navigator.pop(context),
-                          child: Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.15),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(LucideIcons.arrowLeft, color: Colors.white, size: 20),
+                // Top Bar / Search Bar
+                if (_isSearchOpen)
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _isSearchOpen = false;
+                            _searchTerm = '';
+                            _searchController.clear();
+                          });
+                        },
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
                           ),
+                          child: const Icon(LucideIcons.arrowLeft, color: Colors.white, size: 18),
                         ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'noticeBoard'.tr(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    Row(
-                      children: [
-                        if (unreadFilteredCount > 0)
-                          GestureDetector(
-                            onTap: () => appState.markAllNoticesAsRead(),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Row(
-                                children: [
-                                  const Icon(LucideIcons.checkCheck, color: Colors.white, size: 14),
-                                  const SizedBox(width: 5),
-                                  Text(
-                                    'Mark all read',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          icon: isLoading
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                                )
-                              : const Icon(LucideIcons.refreshCw, color: Colors.white, size: 18),
-                          onPressed: isLoading ? null : _loadNotices,
-                          tooltip: 'Refresh Notices',
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                // Active Child Pill & Notices count
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
                       ),
-                      child: Row(
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Container(
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: TextField(
+                            controller: _searchController,
+                            autofocus: true,
+                            onChanged: (val) {
+                              setState(() {
+                                _searchTerm = val;
+                              });
+                            },
+                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            decoration: InputDecoration(
+                              hintText: 'Search notices, circulars...',
+                              hintStyle: const TextStyle(color: Colors.white60, fontSize: 13),
+                              prefixIcon: const Icon(LucideIcons.search, color: Colors.white70, size: 16),
+                              suffixIcon: _searchTerm.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(LucideIcons.x, color: Colors.white70, size: 16),
+                                      onPressed: () {
+                                        setState(() {
+                                          _searchTerm = '';
+                                          _searchController.clear();
+                                        });
+                                      },
+                                    )
+                                  : null,
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(LucideIcons.arrowLeft, color: Colors.white, size: 18),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'noticeBoard'.tr(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${currentChild.name} (${currentChild.grade})',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          CircleAvatar(
-                            radius: 10,
-                            backgroundColor: Colors.white24,
-                            backgroundImage: (childAvatar != null && childAvatar.isNotEmpty)
-                                ? MemoryImage(base64Decode(childAvatar))
-                                : null,
-                            child: (childAvatar == null || childAvatar.isEmpty)
-                                ? Text(
-                                    currentChild.name.isNotEmpty ? currentChild.name[0] : 'S',
-                                    style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
-                                  )
-                                : null,
+                          // WhatsApp-style double-check Mark All Read icon button
+                          if (unreadFilteredCount > 0) ...[
+                            GestureDetector(
+                              onTap: () async {
+                                await appState.markAllNoticesAsRead();
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('All notices marked as read'),
+                                      duration: Duration(seconds: 2),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                }
+                              },
+                              child: Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.15),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(LucideIcons.checkCheck, color: Colors.white, size: 16),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _isSearchOpen = true;
+                              });
+                            },
+                            child: Container(
+                              width: 34,
+                              height: 34,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(LucideIcons.search, color: Colors.white, size: 16),
+                            ),
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '${currentChild.name} (${currentChild.grade})',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: isLoading ? null : _loadNotices,
+                            child: Container(
+                              width: 34,
+                              height: 34,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                shape: BoxShape.circle,
+                              ),
+                              child: isLoading
+                                  ? const Center(
+                                      child: SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                      ),
+                                    )
+                                  : const Icon(LucideIcons.refreshCw, color: Colors.white, size: 15),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    const Spacer(),
-                    if (allNotices.isNotEmpty)
-                      Text(
-                        '${filteredNotices.length} notices • $unreadFilteredCount unread',
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.85),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                // Search Bar
-                TextField(
-                  onChanged: (val) {
-                    setState(() {
-                      _searchTerm = val;
-                    });
-                  },
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: InputDecoration(
-                    prefixIcon: const Icon(LucideIcons.search, color: Colors.white70, size: 18),
-                    suffixIcon: _searchTerm.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(LucideIcons.x, color: Colors.white70, size: 16),
-                            onPressed: () => setState(() => _searchTerm = ''),
-                          )
-                        : null,
-                    hintText: 'Search notices, circulars...',
-                    hintStyle: const TextStyle(color: Colors.white60, fontSize: 13),
-                    fillColor: Colors.white.withValues(alpha: 0.15),
-                    filled: true,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
+                    ],
                   ),
-                ),
                 const SizedBox(height: 12),
 
-                // Dropdown Filter Bar
-                _buildFilterTrigger(),
+                // Horizontal Filter Chips
+                _buildFilterChips(allNotices, appState),
               ],
             ),
           ),
@@ -682,33 +665,43 @@ class _NoticeScreenState extends State<NoticeScreen> {
                               Container(
                                 padding: const EdgeInsets.all(20),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primaryTeal.withValues(alpha: 0.08),
+                                  color: _selectedFilter == NoticeFilterType.unread
+                                      ? const Color(0xFFECFDF5)
+                                      : AppColors.primaryTeal.withValues(alpha: 0.08),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
-                                  _getFilterIcon(_selectedFilter),
+                                  _selectedFilter == NoticeFilterType.unread
+                                      ? LucideIcons.sparkles
+                                      : _getFilterIcon(_selectedFilter),
                                   size: 40,
-                                  color: AppColors.primaryTeal,
+                                  color: _selectedFilter == NoticeFilterType.unread
+                                      ? const Color(0xFF059669)
+                                      : AppColors.primaryTeal,
                                 ),
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                _searchTerm.isNotEmpty
-                                    ? 'No notices match "$_searchTerm"'
-                                    : 'No notices found in ${_getFilterLabel(_selectedFilter)}',
+                                _selectedFilter == NoticeFilterType.unread && _searchTerm.isEmpty
+                                    ? "You're all caught up! 🎉"
+                                    : (_searchTerm.isNotEmpty
+                                        ? 'No notices match "$_searchTerm"'
+                                        : 'No notices found in ${_getFilterLabel(_selectedFilter)}'),
                                 style: const TextStyle(
-                                  fontSize: 15,
+                                  fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.textMain,
                                 ),
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                _searchTerm.isNotEmpty
-                                    ? 'Try checking for typos or searching a different keyword'
-                                    : 'Notices published in this category will appear here.',
+                                _selectedFilter == NoticeFilterType.unread && _searchTerm.isEmpty
+                                    ? 'No unread notices at the moment.'
+                                    : (_searchTerm.isNotEmpty
+                                        ? 'Try checking for typos or searching a different keyword'
+                                        : 'Notices published in this category will appear here.'),
                                 style: const TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 13,
                                   color: AppColors.textMuted,
                                 ),
                               ),

@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -8,7 +7,7 @@ import '../state/app_state.dart';
 import '../models/models.dart';
 import '../constants/colors.dart';
 
-enum ClassUpdateFilterType { all, classwork, homework }
+enum ClassUpdateFilterType { all, unread, classwork, homework }
 
 class ClassUpdateScreen extends StatefulWidget {
   const ClassUpdateScreen({super.key});
@@ -21,6 +20,14 @@ class _ClassUpdateScreenState extends State<ClassUpdateScreen> {
   String _searchTerm = '';
   ClassUpdateFilterType _selectedFilter = ClassUpdateFilterType.all;
   bool _didApplyArg = false;
+  bool _isSearchOpen = false;
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   void didChangeDependencies() {
@@ -31,6 +38,8 @@ class _ClassUpdateScreenState extends State<ClassUpdateScreen> {
         _selectedFilter = ClassUpdateFilterType.classwork;
       } else if (arg == 'Homework') {
         _selectedFilter = ClassUpdateFilterType.homework;
+      } else if (arg == 'Unread') {
+        _selectedFilter = ClassUpdateFilterType.unread;
       }
       _didApplyArg = true;
     }
@@ -43,21 +52,12 @@ class _ClassUpdateScreenState extends State<ClassUpdateScreen> {
     }
   }
 
-  String _getFilterLabel(ClassUpdateFilterType filter) {
-    switch (filter) {
-      case ClassUpdateFilterType.all:
-        return 'allUpdates'.tr();
-      case ClassUpdateFilterType.classwork:
-        return 'classWork'.tr();
-      case ClassUpdateFilterType.homework:
-        return 'homeWork'.tr();
-    }
-  }
-
   IconData _getFilterIcon(ClassUpdateFilterType filter) {
     switch (filter) {
       case ClassUpdateFilterType.all:
         return LucideIcons.layers;
+      case ClassUpdateFilterType.unread:
+        return LucideIcons.sparkles;
       case ClassUpdateFilterType.classwork:
         return LucideIcons.fileText;
       case ClassUpdateFilterType.homework:
@@ -65,214 +65,111 @@ class _ClassUpdateScreenState extends State<ClassUpdateScreen> {
     }
   }
 
-  Color _getFilterColor(ClassUpdateFilterType filter) {
-    switch (filter) {
-      case ClassUpdateFilterType.all:
-        return AppColors.primaryTeal;
-      case ClassUpdateFilterType.classwork:
-        return const Color(0xFF2563EB);
-      case ClassUpdateFilterType.homework:
-        return const Color(0xFF059669);
-    }
-  }
+  Widget _buildFilterChips(List<ClassUpdate> allUpdates, AppState appState) {
+    final unreadCount = allUpdates.where((u) => !appState.isClassUpdateRead(u.id)).length;
+    final classworkUnread = allUpdates.where((u) => u.isClasswork && !appState.isClassUpdateRead(u.id)).length;
+    final homeworkUnread = allUpdates.where((u) => u.isHomework && !appState.isClassUpdateRead(u.id)).length;
 
-  Widget _buildFilterTrigger() {
-    return GestureDetector(
-      onTap: () => _showFilterBottomSheet(context),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x10000000),
-              blurRadius: 8,
-              offset: Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: _getFilterColor(_selectedFilter).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                _getFilterIcon(_selectedFilter),
-                size: 16,
-                color: _getFilterColor(_selectedFilter),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                _getFilterLabel(_selectedFilter),
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textMain,
-                ),
-              ),
-            ),
-            const Icon(LucideIcons.chevronDown, size: 18, color: AppColors.textMuted),
-          ],
-        ),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        children: [
+          _buildChipItem(
+            filter: ClassUpdateFilterType.all,
+            label: 'All',
+          ),
+          const SizedBox(width: 8),
+          _buildChipItem(
+            filter: ClassUpdateFilterType.unread,
+            label: 'Unread',
+            count: unreadCount > 0 ? unreadCount : null,
+          ),
+          const SizedBox(width: 8),
+          _buildChipItem(
+            filter: ClassUpdateFilterType.classwork,
+            label: 'classWork'.tr(),
+            count: classworkUnread > 0 ? classworkUnread : null,
+          ),
+          const SizedBox(width: 8),
+          _buildChipItem(
+            filter: ClassUpdateFilterType.homework,
+            label: 'homeWork'.tr(),
+            count: homeworkUnread > 0 ? homeworkUnread : null,
+          ),
+        ],
       ),
     );
   }
 
-  void _showFilterBottomSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (BuildContext sheetContext) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(sheetContext).padding.bottom + 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Drag Handle
-              Center(
-                child: Container(
-                  width: 36,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFD1D5DB),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Header Row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'selectCategory'.tr(),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.textMain,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => Navigator.pop(sheetContext),
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFF3F4F6),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(LucideIcons.x, size: 16, color: AppColors.textMuted),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              // Options
-              _buildBottomSheetOption(
-                sheetContext: sheetContext,
-                filter: ClassUpdateFilterType.all,
-                title: 'allUpdates'.tr(),
-                icon: LucideIcons.layers,
-                iconColor: AppColors.primaryTeal,
-              ),
-              const SizedBox(height: 8),
-              _buildBottomSheetOption(
-                sheetContext: sheetContext,
-                filter: ClassUpdateFilterType.classwork,
-                title: 'classWork'.tr(),
-                icon: LucideIcons.fileText,
-                iconColor: const Color(0xFF2563EB),
-              ),
-              const SizedBox(height: 8),
-              _buildBottomSheetOption(
-                sheetContext: sheetContext,
-                filter: ClassUpdateFilterType.homework,
-                title: 'homeWork'.tr(),
-                icon: LucideIcons.bookOpen,
-                iconColor: const Color(0xFF059669),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildBottomSheetOption({
-    required BuildContext sheetContext,
+  Widget _buildChipItem({
     required ClassUpdateFilterType filter,
-    required String title,
-    required IconData icon,
-    required Color iconColor,
+    required String label,
+    int? count,
   }) {
     final isSelected = _selectedFilter == filter;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          setState(() {
-            _selectedFilter = filter;
-          });
-          Navigator.pop(sheetContext);
-        },
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: isSelected ? iconColor.withValues(alpha: 0.08) : Colors.transparent,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isSelected ? iconColor.withValues(alpha: 0.3) : const Color(0xFFE5E7EB),
-              width: isSelected ? 1.5 : 1.0,
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _selectedFilter = filter;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? AppColors.primaryTeal : Colors.white,
+              ),
             ),
-          ),
-          child: Row(
-            children: [
+            if (count != null && count > 0) ...[
+              const SizedBox(width: 6),
               Container(
-                padding: const EdgeInsets.all(7),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                 decoration: BoxDecoration(
-                  color: iconColor.withValues(alpha: 0.12),
+                  color: isSelected
+                      ? const Color(0xFFEA580C)
+                      : const Color(0xFFF97316),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, size: 18, color: iconColor),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
                 child: Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                    color: isSelected ? AppColors.textMain : const Color(0xFF4B5563),
+                  '$count',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
                   ),
                 ),
               ),
-              if (isSelected)
-                Icon(
-                  LucideIcons.check,
-                  size: 20,
-                  color: iconColor,
-                ),
             ],
-          ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildClassUpdateCard(BuildContext context, ClassUpdate update) {
+  Widget _buildClassUpdateCard(BuildContext context, ClassUpdate update, AppState appState) {
+    final isUnread = !appState.isClassUpdateRead(update.id);
     final isHomework = update.isHomework;
     final themeColor = isHomework ? const Color(0xFF059669) : const Color(0xFF2563EB);
     final bgIconColor = isHomework ? const Color(0xFFECFDF5) : const Color(0xFFEFF6FF);
@@ -284,168 +181,243 @@ class _ClassUpdateScreenState extends State<ClassUpdateScreen> {
       padding: const EdgeInsets.only(bottom: 12),
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isUnread ? Colors.white : const Color(0xFFF8FAFC),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: AppColors.border,
-            width: 1.0,
+            color: isUnread
+                ? themeColor.withValues(alpha: 0.35)
+                : const Color(0xFFE2E8F0),
+            width: isUnread ? 1.2 : 1.0,
           ),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x08000000),
-              blurRadius: 8,
-              offset: Offset(0, 2),
-            ),
-          ],
+          boxShadow: isUnread
+              ? [
+                  BoxShadow(
+                    color: themeColor.withValues(alpha: 0.08),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                  const BoxShadow(
+                    color: Color(0x06000000),
+                    blurRadius: 4,
+                    offset: Offset(0, 1),
+                  ),
+                ]
+              : const [
+                  BoxShadow(
+                    color: Color(0x04000000),
+                    blurRadius: 3,
+                    offset: Offset(0, 1),
+                  ),
+                ],
         ),
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(18),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => ClassUpdateDetailScreen(update: update),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(18),
+          child: Stack(
+            children: [
+              // 4.5px vertical accent stripe on left edge for unread updates
+              if (isUnread)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 4.5,
+                    color: themeColor,
+                  ),
                 ),
-              );
-            },
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Leading Icon Box
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: bgIconColor,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: borderIconColor, width: 1),
-                        ),
-                        child: Icon(iconData, size: 20, color: themeColor),
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: () {
+                    appState.markClassUpdateAsRead(update.id);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ClassUpdateDetailScreen(update: update),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
+                    );
+                  },
+                  child: Padding(
+                    padding: EdgeInsets.fromLTRB(isUnread ? 18 : 16, 16, 16, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Type & Date
+                            // Leading Icon Box
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: isUnread ? bgIconColor : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isUnread ? borderIconColor : const Color(0xFFE2E8F0),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Icon(
+                                iconData,
+                                size: 20,
+                                color: isUnread ? themeColor : const Color(0xFF64748B),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Type, NEW Tag & Date
+                                  Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: isUnread ? bgIconColor : const Color(0xFFF1F5F9),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(
+                                            color: isUnread ? borderIconColor : const Color(0xFFE2E8F0),
+                                            width: 0.8,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          typeLabel,
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: isUnread ? themeColor : const Color(0xFF64748B),
+                                          ),
+                                        ),
+                                      ),
+                                      if (isUnread) ...[
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                          decoration: BoxDecoration(
+                                            color: themeColor.withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(6),
+                                            border: Border.all(
+                                              color: themeColor.withValues(alpha: 0.3),
+                                              width: 0.8,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            'NEW',
+                                            style: TextStyle(
+                                              color: themeColor,
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w800,
+                                              letterSpacing: 0.5,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        update.date,
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          color: isUnread ? AppColors.textMuted : const Color(0xFF94A3B8),
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 5),
+                                  // Subject & Title
+                                  Text(
+                                    update.title.isNotEmpty ? '${update.subject}: ${update.title}' : update.subject,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: isUnread ? FontWeight.w800 : FontWeight.w600,
+                                      color: isUnread ? AppColors.textMain : const Color(0xFF334155),
+                                      height: 1.25,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Icon(
+                              LucideIcons.chevronRight,
+                              size: 16,
+                              color: isUnread ? AppColors.textMuted : const Color(0xFF94A3B8),
+                            ),
+                          ],
+                        ),
+                        if (update.body.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            update.body,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isUnread ? const Color(0xFF4B5563) : const Color(0xFF64748B),
+                              fontSize: 13,
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            // Teacher Name
                             Row(
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: bgIconColor,
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(color: borderIconColor, width: 0.8),
-                                  ),
-                                  child: Text(
-                                    typeLabel,
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                      color: themeColor,
-                                    ),
-                                  ),
+                                Icon(
+                                  LucideIcons.user,
+                                  size: 12,
+                                  color: isUnread ? AppColors.textMuted : const Color(0xFF94A3B8),
                                 ),
-                                const SizedBox(width: 6),
+                                const SizedBox(width: 4),
                                 Text(
-                                  update.date,
-                                  style: const TextStyle(
+                                  '${'by'.tr()} ${update.teacher}',
+                                  style: TextStyle(
                                     fontSize: 11,
-                                    color: AppColors.textMuted,
+                                    color: isUnread ? AppColors.textMuted : const Color(0xFF94A3B8),
                                     fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 5),
-                            // Subject & Title
-                            Text(
-                              update.title.isNotEmpty ? '${update.subject}: ${update.title}' : update.subject,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                color: AppColors.textMain,
-                                height: 1.25,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Icon(LucideIcons.chevronRight, size: 16, color: AppColors.textMuted),
-                    ],
-                  ),
-                  if (update.body.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      update.body,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF4B5563),
-                        fontSize: 13,
-                        height: 1.45,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      // Teacher Name
-                      Row(
-                        children: [
-                          const Icon(LucideIcons.user, size: 12, color: AppColors.textMuted),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${'by'.tr()} ${update.teacher}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textMuted,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const Spacer(),
-                      // Attachments Pill
-                      if (update.attachments.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFEFF6FF),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: const Color(0xFFBFDBFE)),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(LucideIcons.paperclip, size: 12, color: Color(0xFF1D4ED8)),
-                              const SizedBox(width: 4),
-                              Text(
-                                '${update.attachments.length} ${update.attachments.length == 1 ? 'file' : 'files'}',
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1D4ED8),
+                            const Spacer(),
+                            // Attachments Pill
+                            if (update.attachments.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFEFF6FF),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: const Color(0xFFBFDBFE)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(LucideIcons.paperclip, size: 12, color: Color(0xFF1D4ED8)),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '${update.attachments.length} ${update.attachments.length == 1 ? 'file' : 'files'}',
+                                      style: const TextStyle(
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF1D4ED8),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                            ],
-                          ),
+                          ],
                         ),
-                    ],
+                      ],
+                    ),
                   ),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),
@@ -457,14 +429,15 @@ class _ClassUpdateScreenState extends State<ClassUpdateScreen> {
     final appState = Provider.of<AppState>(context);
     final updates = appState.classUpdates;
     final currentChild = appState.currentChild;
-    final childAvatar = appState.childAvatars[currentChild.id];
     final isLoading = appState.isClassUpdatesLoading;
 
-    // 1. Filter by category
+    // 1. Filter by category / unread status
     final categoryFiltered = updates.where((u) {
       switch (_selectedFilter) {
         case ClassUpdateFilterType.all:
           return true;
+        case ClassUpdateFilterType.unread:
+          return !appState.isClassUpdateRead(u.id);
         case ClassUpdateFilterType.classwork:
           return u.isClasswork;
         case ClassUpdateFilterType.homework:
@@ -489,7 +462,7 @@ class _ClassUpdateScreenState extends State<ClassUpdateScreen> {
       backgroundColor: AppColors.background,
       body: Column(
         children: [
-          // Header & Search
+          // Header (Compact, modern gradient container)
           Container(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -498,136 +471,190 @@ class _ClassUpdateScreenState extends State<ClassUpdateScreen> {
                 end: Alignment.bottomRight,
               ),
             ),
-            padding: const EdgeInsets.fromLTRB(20, 52, 20, 18),
+            padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 8, 16, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Top Bar
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        GestureDetector(
-                          onTap: () => Navigator.pop(context),
-                          child: Container(
-                            width: 38,
-                            height: 38,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.15),
-                              shape: BoxShape.circle,
-                            ),
-                            child: const Icon(LucideIcons.arrowLeft, color: Colors.white, size: 20),
+                // Top Bar / Search Bar
+                if (_isSearchOpen)
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _isSearchOpen = false;
+                            _searchTerm = '';
+                            _searchController.clear();
+                          });
+                        },
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
                           ),
+                          child: const Icon(LucideIcons.arrowLeft, color: Colors.white, size: 18),
                         ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'classUpdate'.tr(),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    IconButton(
-                      icon: isLoading
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Icon(LucideIcons.refreshCw, color: Colors.white, size: 18),
-                      onPressed: isLoading ? null : _loadUpdates,
-                      tooltip: 'Refresh Updates',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                // Active Child Pill & Updates count
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(20),
                       ),
-                      child: Row(
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Container(
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: TextField(
+                            controller: _searchController,
+                            autofocus: true,
+                            onChanged: (val) {
+                              setState(() {
+                                _searchTerm = val;
+                              });
+                            },
+                            style: const TextStyle(color: Colors.white, fontSize: 13),
+                            decoration: InputDecoration(
+                              hintText: 'Search homework, classwork, subject...',
+                              hintStyle: const TextStyle(color: Colors.white60, fontSize: 13),
+                              prefixIcon: const Icon(LucideIcons.search, color: Colors.white70, size: 16),
+                              suffixIcon: _searchTerm.isNotEmpty
+                                  ? IconButton(
+                                      icon: const Icon(LucideIcons.x, color: Colors.white70, size: 16),
+                                      onPressed: () {
+                                        setState(() {
+                                          _searchTerm = '';
+                                          _searchController.clear();
+                                        });
+                                      },
+                                    )
+                                  : null,
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              isDense: true,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(LucideIcons.arrowLeft, color: Colors.white, size: 18),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'classUpdate'.tr(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${currentChild.name} (${currentChild.grade})',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          CircleAvatar(
-                            radius: 10,
-                            backgroundColor: Colors.white24,
-                            backgroundImage: (childAvatar != null && childAvatar.isNotEmpty)
-                                ? MemoryImage(base64Decode(childAvatar))
-                                : null,
-                            child: (childAvatar == null || childAvatar.isEmpty)
-                                ? Text(
-                                    currentChild.name.isNotEmpty ? currentChild.name[0].toUpperCase() : 'C',
-                                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                                  )
-                                : null,
+                          // WhatsApp-style double-check Mark All Read icon button
+                          if (filteredUpdates.where((u) => !appState.isClassUpdateRead(u.id)).isNotEmpty) ...[
+                            GestureDetector(
+                              onTap: () async {
+                                await appState.markAllClassUpdatesAsRead();
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('All class updates marked as read'),
+                                      duration: Duration(seconds: 2),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                }
+                              },
+                              child: Container(
+                                width: 34,
+                                height: 34,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.15),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(LucideIcons.checkCheck, color: Colors.white, size: 16),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                          GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _isSearchOpen = true;
+                              });
+                            },
+                            child: Container(
+                              width: 34,
+                              height: 34,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(LucideIcons.search, color: Colors.white, size: 16),
+                            ),
                           ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '${currentChild.name} (${currentChild.grade})',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: isLoading ? null : _loadUpdates,
+                            child: Container(
+                              width: 34,
+                              height: 34,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                shape: BoxShape.circle,
+                              ),
+                              child: isLoading
+                                  ? const Center(
+                                      child: SizedBox(
+                                        width: 14,
+                                        height: 14,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                      ),
+                                    )
+                                  : const Icon(LucideIcons.refreshCw, color: Colors.white, size: 15),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      '${filteredUpdates.length} updates',
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-
-                // Search Bar
-                TextField(
-                  onChanged: (val) {
-                    setState(() {
-                      _searchTerm = val;
-                    });
-                  },
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
-                  decoration: InputDecoration(
-                    prefixIcon: const Icon(LucideIcons.search, color: Colors.white70, size: 18),
-                    suffixIcon: _searchTerm.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(LucideIcons.x, color: Colors.white70, size: 16),
-                            onPressed: () => setState(() => _searchTerm = ''),
-                          )
-                        : null,
-                    hintText: 'Search homework, classwork, subject...',
-                    hintStyle: const TextStyle(color: Colors.white60, fontSize: 13),
-                    fillColor: Colors.white.withValues(alpha: 0.15),
-                    filled: true,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                      borderSide: BorderSide.none,
-                    ),
+                    ],
                   ),
-                ),
                 const SizedBox(height: 12),
 
-                // Dropdown Filter Bar
-                _buildFilterTrigger(),
+                // Horizontal Filter Chips
+                _buildFilterChips(updates, appState),
               ],
             ),
           ),
@@ -644,7 +671,7 @@ class _ClassUpdateScreenState extends State<ClassUpdateScreen> {
                       itemCount: filteredUpdates.length,
                       itemBuilder: (context, index) {
                         final update = filteredUpdates[index];
-                        return _buildClassUpdateCard(context, update);
+                        return _buildClassUpdateCard(context, update, appState);
                       },
                     )
                   : ListView(
@@ -657,33 +684,43 @@ class _ClassUpdateScreenState extends State<ClassUpdateScreen> {
                               Container(
                                 padding: const EdgeInsets.all(20),
                                 decoration: BoxDecoration(
-                                  color: AppColors.primaryTeal.withValues(alpha: 0.08),
+                                  color: _selectedFilter == ClassUpdateFilterType.unread
+                                      ? const Color(0xFFECFDF5)
+                                      : AppColors.primaryTeal.withValues(alpha: 0.08),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
-                                  _getFilterIcon(_selectedFilter),
+                                  _selectedFilter == ClassUpdateFilterType.unread
+                                      ? LucideIcons.sparkles
+                                      : _getFilterIcon(_selectedFilter),
                                   size: 40,
-                                  color: AppColors.primaryTeal,
+                                  color: _selectedFilter == ClassUpdateFilterType.unread
+                                      ? const Color(0xFF059669)
+                                      : AppColors.primaryTeal,
                                 ),
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                _searchTerm.isNotEmpty
-                                    ? 'No updates match "$_searchTerm"'
-                                    : 'noUpdatesFound'.tr(),
+                                _selectedFilter == ClassUpdateFilterType.unread && _searchTerm.isEmpty
+                                    ? "You're all caught up! 🎉"
+                                    : (_searchTerm.isNotEmpty
+                                        ? 'No updates match "$_searchTerm"'
+                                        : 'noUpdatesFound'.tr()),
                                 style: const TextStyle(
-                                  fontSize: 15,
+                                  fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                   color: AppColors.textMain,
                                 ),
                               ),
                               const SizedBox(height: 6),
                               Text(
-                                _searchTerm.isNotEmpty
-                                    ? 'Try checking for typos or searching another subject'
-                                    : 'Classwork and homework assigned by teachers will appear here.',
+                                _selectedFilter == ClassUpdateFilterType.unread && _searchTerm.isEmpty
+                                    ? 'No unread class updates at the moment.'
+                                    : (_searchTerm.isNotEmpty
+                                        ? 'Try checking for typos or searching another subject'
+                                        : 'Classwork and homework assigned by teachers will appear here.'),
                                 style: const TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 13,
                                   color: AppColors.textMuted,
                                 ),
                               ),

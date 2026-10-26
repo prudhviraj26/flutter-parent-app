@@ -676,14 +676,33 @@ class Fee {
 
 class Photo {
   final String id;
-  final String url;
+  final String url; // Full-resolution SAS URL
+  final String thumbnailUrl; // Lightweight web thumbnail SAS URL
+  final String name;
+  final String type; // 'image' | 'video'
+  final String caption;
 
-  Photo({required this.id, required this.url});
+  Photo({
+    required this.id,
+    required this.url,
+    String? thumbnailUrl,
+    this.name = '',
+    this.type = 'image',
+    this.caption = '',
+  }) : thumbnailUrl = (thumbnailUrl != null && thumbnailUrl.isNotEmpty) ? thumbnailUrl : url;
+
+  bool get isVideo => type.toLowerCase() == 'video';
 
   factory Photo.fromJson(Map<String, dynamic> json) {
+    final fullUrl = json['url'] as String? ?? '';
+    final thumb = json['thumbnailUrl'] as String? ?? fullUrl;
     return Photo(
       id: json['id'] as String? ?? '',
-      url: json['url'] as String? ?? '',
+      url: fullUrl,
+      thumbnailUrl: thumb,
+      name: json['name'] as String? ?? '',
+      type: json['type'] as String? ?? 'image',
+      caption: json['caption'] as String? ?? '',
     );
   }
 
@@ -691,37 +710,55 @@ class Photo {
     return {
       'id': id,
       'url': url,
+      'thumbnailUrl': thumbnailUrl,
+      'name': name,
+      'type': type,
+      'caption': caption,
     };
   }
 }
 
 class Album {
   final String id;
+  final String eventId;
   final String title;
+  final String category;
+  final String eventDate;
+  final String location;
   final String coverPhoto;
   final int? _photoCount;
   final List<Photo> photos;
 
   Album({
     required this.id,
+    String? eventId,
     required this.title,
+    this.category = 'general',
+    this.eventDate = '',
+    this.location = '',
     required this.coverPhoto,
     int? photoCount,
     required this.photos,
-  }) : _photoCount = photoCount ?? photos.length;
+  })  : eventId = eventId ?? id,
+        _photoCount = photoCount ?? photos.length;
 
   int get photoCount => _photoCount ?? photos.length;
 
   factory Album.fromJson(Map<String, dynamic> json) {
-    var photosJson = json['photos'] as List<dynamic>?;
+    final mediaRaw = json['media'] ?? json['photos'];
+    var photosJson = mediaRaw as List<dynamic>?;
     List<Photo> pts = photosJson != null
         ? photosJson.map((e) => Photo.fromJson(e as Map<String, dynamic>)).toList()
         : [];
     return Album(
-      id: json['id'] as String? ?? '',
+      id: json['id'] as String? ?? json['eventId'] as String? ?? '',
+      eventId: json['eventId'] as String? ?? json['id'] as String? ?? '',
       title: json['title'] as String? ?? '',
-      coverPhoto: json['coverPhoto'] as String? ?? '',
-      photoCount: (json['photoCount'] as num?)?.toInt() ?? pts.length,
+      category: json['category'] as String? ?? 'general',
+      eventDate: json['eventDate'] as String? ?? '',
+      location: json['location'] as String? ?? '',
+      coverPhoto: json['coverPhoto'] as String? ?? (pts.isNotEmpty ? pts.first.thumbnailUrl : ''),
+      photoCount: (json['mediaCount'] as num?)?.toInt() ?? (json['photoCount'] as num?)?.toInt() ?? pts.length,
       photos: pts,
     );
   }
@@ -729,7 +766,11 @@ class Album {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'eventId': eventId,
       'title': title,
+      'category': category,
+      'eventDate': eventDate,
+      'location': location,
       'coverPhoto': coverPhoto,
       'photoCount': photoCount,
       'photos': photos.map((e) => e.toJson()).toList(),

@@ -31,6 +31,10 @@ class AppState extends ChangeNotifier {
   bool isNoticeRead(String id) => _readNoticeIds.contains(id);
   int get unreadNoticesCount => notices.where((n) => !isNoticeRead(n.id)).length;
   Map<String, List<ClassUpdate>> _classUpdatesDb = {};
+  Set<String> _readClassUpdateIds = {};
+  Set<String> get readClassUpdateIds => _readClassUpdateIds;
+  bool isClassUpdateRead(String id) => _readClassUpdateIds.contains(id);
+  int get unreadClassUpdatesCount => classUpdates.where((u) => !isClassUpdateRead(u.id)).length;
   Map<String, List<Teacher>> _teachersDb = {};
   Map<String, Attendance> _attendanceDb = {};
   Map<String, List<Event>> _eventsDb = {};
@@ -43,6 +47,9 @@ class AppState extends ChangeNotifier {
       _healthRecordsDb[studentId] ?? HealthRecord.empty(studentId);
   Map<String, Fee> _feesDb = {};
   List<Album> _albumsDb = [];
+  final Map<String, List<Album>> _childAlbumsDb = {};
+  bool _isGalleryLoading = false;
+  bool get isGalleryLoading => _isGalleryLoading;
   List<Holiday> _holidaysDb = [];
   List<AcademicYearItem> _academicYears = [];
   List<AcademicYearItem> get academicYears => _academicYears;
@@ -159,6 +166,7 @@ class AppState extends ChangeNotifier {
 
     // Load read notices tracking
     await _loadReadNoticeIds();
+    await _loadReadClassUpdateIds();
 
     notifyListeners();
 
@@ -293,6 +301,7 @@ class AppState extends ChangeNotifier {
         ParentApiService.getChildEvents(studentId),
         ParentApiService.getChildHealth(studentId).catchError((_) => <String, dynamic>{}),
         ParentApiService.getChildClassUpdates(studentId).catchError((_) => <dynamic>[]),
+        ParentApiService.getChildGallery(studentId).catchError((_) => <Album>[]),
       ]);
 
       // 1. Attendance
@@ -446,13 +455,50 @@ class AppState extends ChangeNotifier {
             .toList();
         parsedUpdates.sort((a, b) => b.dateTime.compareTo(a.dateTime));
         _classUpdatesDb[studentId] = parsedUpdates;
+        for (final u in parsedUpdates) {
+          if (u.isRead) {
+            _readClassUpdateIds.add(u.id);
+          }
+        }
+        await _saveReadClassUpdateIds();
       } catch (e) {
         debugPrint('Parse class updates note: $e');
+      }
+
+      // 8. Gallery Albums
+      try {
+        final albumsList = results[7] as List<Album>? ?? [];
+        if (albumsList.isNotEmpty) {
+          _childAlbumsDb[studentId] = albumsList;
+          _albumsDb = albumsList;
+        }
+      } catch (e) {
+        debugPrint('Parse gallery note: $e');
       }
 
       notifyListeners();
     } catch (e) {
       debugPrint('Live child data fetch note: $e');
+    }
+  }
+
+  /// Explicitly refresh media gallery albums for child
+  Future<void> fetchGallery(String studentId, {bool silent = false}) async {
+    try {
+      if (!silent) {
+        _isGalleryLoading = true;
+        notifyListeners();
+      }
+      final albums = await ParentApiService.getChildGallery(studentId);
+      if (albums.isNotEmpty) {
+        _childAlbumsDb[studentId] = albums;
+        _albumsDb = albums;
+      }
+    } catch (e) {
+      debugPrint('Error fetching gallery: $e');
+    } finally {
+      _isGalleryLoading = false;
+      notifyListeners();
     }
   }
 
@@ -856,6 +902,12 @@ class AppState extends ChangeNotifier {
           .toList();
       parsed.sort((a, b) => b.dateTime.compareTo(a.dateTime));
       _classUpdatesDb[studentId] = parsed;
+      for (final u in parsed) {
+        if (u.isRead) {
+          _readClassUpdateIds.add(u.id);
+        }
+      }
+      await _saveReadClassUpdateIds();
     } catch (e) {
       debugPrint('Error fetching class updates: $e');
     } finally {
@@ -894,13 +946,43 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  Future<void> _loadReadClassUpdateIds() async {
+    final key = 'veyho_parent_read_class_updates_${_mobile ?? 'user'}';
+    final list = _prefs?.getStringList(key) ?? [];
+    _readClassUpdateIds = list.toSet();
+  }
+
+  Future<void> _saveReadClassUpdateIds() async {
+    final key = 'veyho_parent_read_class_updates_${_mobile ?? 'user'}';
+    await _prefs?.setStringList(key, _readClassUpdateIds.toList());
+  }
+
+  Future<void> markClassUpdateAsRead(String id) async {
+    if (id.isEmpty || _readClassUpdateIds.contains(id)) return;
+    _readClassUpdateIds.add(id);
+    await _saveReadClassUpdateIds();
+    notifyListeners();
+    ParentApiService.markNoticeRead(id).catchError((_) => false);
+  }
+
+  Future<void> markAllClassUpdatesAsRead() async {
+    final unread = classUpdates.where((u) => !_readClassUpdateIds.contains(u.id)).map((u) => u.id).toList();
+    if (unread.isEmpty) return;
+    _readClassUpdateIds.addAll(unread);
+    await _saveReadClassUpdateIds();
+    notifyListeners();
+    for (final id in unread) {
+      ParentApiService.markNoticeRead(id).catchError((_) => false);
+    }
+  }
+
   List<Notice> get notices => _childNoticesDb[currentChild.id] ?? _noticesDb;
   List<ClassUpdate> get classUpdates => _classUpdatesDb[currentChild.id] ?? [];
   List<Teacher> get teachers => _teachersDb[currentChild.id] ?? (_teachersDb.values.isNotEmpty ? _teachersDb.values.first : []);
   Attendance get attendance => _attendanceDb[currentChild.id] ?? (_attendanceDb.values.isNotEmpty ? _attendanceDb.values.first : Attendance(month: '—', summary: AttendanceSummary(present: 0, absent: 0, holiday: 0, weekend: 0), calendar: {}));
   List<Event> get events => _eventsDb[currentChild.id] ?? (_eventsDb.values.isNotEmpty ? _eventsDb.values.first : []);
   Fee get fees => _feesDb[currentChild.id] ?? (_feesDb.values.isNotEmpty ? _feesDb.values.first : Fee(status: '—', amount: 0.0, dueDate: '—', history: []));
-  List<Album> get albums => _albumsDb;
+  List<Album> get albums => _childAlbumsDb[currentChild.id] ?? _albumsDb;
   List<Holiday> get holidays => getHolidaysForYear(_selectedAcademicYearId);
 
   List<Holiday> getHolidaysForYear(String? yearId) {

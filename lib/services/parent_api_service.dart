@@ -1,4 +1,5 @@
 import 'api_service.dart';
+import '../models/models.dart';
 
 class ParentApiService {
   /// Fetch parent profile and list of linked children
@@ -153,6 +154,15 @@ class ParentApiService {
       return response;
     }
     throw Exception('Failed to load health records');
+  }
+
+  /// Fetch media gallery albums for student
+  static Future<List<Album>> getChildGallery(String studentId) async {
+    final response = await ApiService.get('/parent/children/$studentId/gallery');
+    if (response is List) {
+      return response.map((json) => Album.fromJson(json as Map<String, dynamic>)).toList();
+    }
+    return [];
   }
 }
 

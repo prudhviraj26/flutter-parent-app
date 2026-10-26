@@ -24,12 +24,17 @@ class _HomeScreenState extends State<HomeScreen> {
     final currentChild = appState.currentChild;
 
     // Retrieve active student metrics from state
-    final classUpdates = appState.classUpdates;
     final fees = appState.fees;
     final events = appState.events;
-
-    final pendingHomework = classUpdates.where((u) => u.type == 'Homework').length;
     final childAvatar = appState.childAvatars[currentChild.id];
+
+    // Compute upcoming events count (events occurring today or in future)
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final upcomingEventsCount = events.where((e) {
+      final dt = DateTime.tryParse(e.startDate) ?? DateTime.tryParse(e.date);
+      return dt != null && !dt.isBefore(today);
+    }).length;
 
     // School name dynamic
     final String schoolName = appState.currentSchoolName;
@@ -365,7 +370,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: AppColors.primaryTeal,
                           icon: LucideIcons.bookOpen,
                           title: 'classUpdate'.tr(),
-                          subtitle: '$pendingHomework ${'homeworkPending'.tr()}',
+                          subtitle: 'Class & Home Work',
+                          unreadCount: appState.unreadClassUpdatesCount,
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -409,7 +415,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: AppColors.primaryTeal,
                           icon: LucideIcons.calendar,
                           title: 'events'.tr(),
-                          subtitle: '${events.length} ${'upcoming'.tr()}',
+                          subtitle: upcomingEventsCount > 0
+                              ? '$upcomingEventsCount ${'upcoming'.tr()}'
+                              : 'No Upcoming',
                         ),
                       ),
                     ],
@@ -472,6 +480,7 @@ class _HomeScreenState extends State<HomeScreen> {
     required IconData icon,
     required String title,
     required String subtitle,
+    int unreadCount = 0,
   }) {
     return Material(
       color: Colors.transparent,
@@ -494,14 +503,35 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: Icon(icon, color: Colors.white, size: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Icon(icon, color: Colors.white, size: 24),
+                  ),
+                  if (unreadCount > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '$unreadCount new',
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 12),
               Text(
@@ -520,6 +550,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   fontSize: 12,
                   fontWeight: FontWeight.w400,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

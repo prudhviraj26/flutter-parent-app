@@ -213,10 +213,15 @@ class AppState extends ChangeNotifier {
       if (profile['schoolLogoUrl'] != null && profile['schoolLogoUrl'].toString().isNotEmpty) {
         _schoolLogoUrl = profile['schoolLogoUrl'].toString();
         await _prefs?.setString('veyho_cached_school_logo_url', _schoolLogoUrl!);
-        if (_schoolLogoBase64 == null) {
-          _cacheImageLocally(_schoolLogoUrl!, 'veyho_cached_school_logo', (b64) {
+
+        // Extract clean asset path (before SAS ? query) to detect if image file changed on server
+        final cleanLogoPath = _schoolLogoUrl!.split('?').first;
+        final cachedLogoPath = _prefs?.getString('veyho_cached_school_logo_path');
+        if (_schoolLogoBase64 == null || cachedLogoPath != cleanLogoPath) {
+          await _cacheImageLocally(_schoolLogoUrl!, 'veyho_cached_school_logo', (b64) {
             _schoolLogoBase64 = b64;
           });
+          await _prefs?.setString('veyho_cached_school_logo_path', cleanLogoPath);
         }
       }
 
@@ -262,12 +267,17 @@ class AppState extends ChangeNotifier {
           json.encode(_children.map((c) => c.toJson()).toList()),
         );
 
-        // Cache child photos locally
+        // Cache child photos locally with zero egress check (only download if missing or updated)
         for (var child in _children) {
-          if (child.photoUrl != null && child.photoUrl!.isNotEmpty && !_childAvatars.containsKey(child.id)) {
-            _cacheImageLocally(child.photoUrl!, 'veyho_child_avatar_${child.id}', (b64) {
-              _childAvatars[child.id] = b64;
-            });
+          if (child.photoUrl != null && child.photoUrl!.isNotEmpty) {
+            final cleanPhotoPath = child.photoUrl!.split('?').first;
+            final cachedPhotoPath = _prefs?.getString('veyho_child_avatar_path_${child.id}');
+            if (!_childAvatars.containsKey(child.id) || cachedPhotoPath != cleanPhotoPath) {
+              await _cacheImageLocally(child.photoUrl!, 'veyho_child_avatar_${child.id}', (b64) {
+                _childAvatars[child.id] = b64;
+              });
+              await _prefs?.setString('veyho_child_avatar_path_${child.id}', cleanPhotoPath);
+            }
           }
         }
 
@@ -662,6 +672,8 @@ class AppState extends ChangeNotifier {
                   apaarId: c['apaarId']?.toString() ?? '—',
                   penNo: c['penNumber']?.toString() ?? '—',
                   studentId: c['id'].toString(),
+                  photoUrl: c['photoUrl'] as String?,
+                  rollNumber: c['rollNumber'] as String?,
                 );
               }).toList();
 
@@ -674,6 +686,21 @@ class AppState extends ChangeNotifier {
             }
           }
         }
+
+        // Immediately restore any locally cached images for 0ms visual render & zero egress
+        for (var child in _children) {
+          final avatarBase64 = _prefs?.getString('veyho_child_avatar_${child.id}');
+          if (avatarBase64 != null) {
+            _childAvatars[child.id] = avatarBase64;
+          }
+        }
+        final cachedLogo = _prefs?.getString('veyho_cached_school_logo');
+        if (cachedLogo != null && cachedLogo.isNotEmpty) {
+          _schoolLogoBase64 = cachedLogo;
+        }
+
+        // Synchronize live profile (fetches SAS URLs and caches new/updated assets)
+        await fetchLiveProfile();
 
         if (_children.isNotEmpty) {
           await fetchLiveChildData(currentChild.id);
@@ -730,19 +757,21 @@ class AppState extends ChangeNotifier {
     _schoolName = '';
     _schoolLogoUrl = null;
     _schoolLogoBase64 = null;
-    for (var child in _children) {
-      await _prefs?.remove('veyho_child_avatar_${child.id}');
-    }
+    // Clear in-memory active state
     _childAvatars.clear();
     _children = [];
     _currentChild = null;
+
+    // Clear session credentials and active user data
     await ApiService.clearTokens();
     await _prefs?.remove('veyho_parent_user');
     await _prefs?.remove('veyho_cached_school_name');
-    await _prefs?.remove('veyho_cached_school_logo');
-    await _prefs?.remove('veyho_cached_school_logo_url');
     await _prefs?.remove('veyho_cached_children');
     await _prefs?.remove('veyho_active_child_id');
+
+    // NOTE: We intentionally retain 'veyho_child_avatar_${child.id}', 'veyho_cached_school_logo',
+    // and version tags in SharedPreferences. This guarantees zero Azure egress cost and instant 0ms
+    // image rendering on subsequent logins.
     notifyListeners();
   }
 

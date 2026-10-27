@@ -431,6 +431,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
                                         ? VeyhoCachedImage(
                                             mediaId: '${album.id}_cover',
                                             url: album.coverPhoto,
+                                            eventDate: album.eventDate,
                                             isThumbnail: true,
                                             height: 180,
                                             width: double.infinity,
@@ -730,6 +731,7 @@ class AlbumDetailScreen extends StatelessWidget {
                           photos: effectiveAlbum.photos,
                           initialIndex: index,
                           albumTitle: effectiveAlbum.title,
+                          eventDate: effectiveAlbum.eventDate,
                         ),
                       ),
                     );
@@ -740,6 +742,7 @@ class AlbumDetailScreen extends StatelessWidget {
                       VeyhoCachedImage(
                         mediaId: photo.id,
                         url: photo.thumbnailUrl,
+                        eventDate: effectiveAlbum.eventDate,
                         isThumbnail: true,
                         fit: BoxFit.cover,
                       ),
@@ -772,12 +775,14 @@ class FullScreenImageViewer extends StatefulWidget {
   final List<Photo> photos;
   final int initialIndex;
   final String albumTitle;
+  final String? eventDate;
 
   const FullScreenImageViewer({
     super.key,
     required this.photos,
     required this.initialIndex,
     required this.albumTitle,
+    this.eventDate,
   });
 
   @override
@@ -823,6 +828,7 @@ class _FullScreenImageViewerState extends State<FullScreenImageViewer> {
                   child: VeyhoCachedImage(
                     mediaId: photo.id,
                     url: photo.url,
+                    eventDate: widget.eventDate,
                     isThumbnail: false,
                     fit: BoxFit.contain,
                   ),
@@ -1354,14 +1360,28 @@ class _EventsScreenState extends State<EventsScreen> {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
 
+    // Active academic year hard restriction
+    AcademicYearItem? currentYear;
+    try {
+      currentYear = appState.academicYears.firstWhere(
+        (y) => y.isCurrent,
+        orElse: () => appState.academicYears.isNotEmpty ? appState.academicYears.first : null as dynamic,
+      );
+    } catch (_) {}
+    final currentYearStart = currentYear?.startDate;
+
     final upcomingEvents = filteredEvents.where((e) {
       final dt = _parseEventDate(e);
       return dt != null && !dt.isBefore(today);
     }).toList();
 
+    // Past Events: Hard restricted to current active academic year only
     final pastEvents = filteredEvents.where((e) {
       final dt = _parseEventDate(e);
-      return dt != null && dt.isBefore(today);
+      if (dt == null) return false;
+      final isPast = dt.isBefore(today);
+      final isWithinCurrentSession = currentYearStart == null || !dt.isBefore(currentYearStart);
+      return isPast && isWithinCurrentSession;
     }).toList();
 
     // Sort upcoming ascending (nearest first)
@@ -1914,6 +1934,7 @@ class EventDetailScreen extends StatelessWidget {
                         child: VeyhoCachedImage(
                           mediaId: '${matchingAlbum.id}_cover',
                           url: matchingAlbum.coverPhoto,
+                          eventDate: matchingAlbum.eventDate,
                           isThumbnail: true,
                           fit: BoxFit.cover,
                         ),

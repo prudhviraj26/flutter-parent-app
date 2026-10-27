@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 /// Saves event photos directly in the private Veyho App Space (`getApplicationSupportDirectory()`).
 /// The OS will NEVER purge these files under storage pressure.
 /// Once saved, repeat visits 3 days or 6 months later read directly from local flash storage at $0.00 Azure egress.
+/// Automatically cleans up prior academic year photos upon session transition.
 class GalleryLocalStore {
   static Directory? _cachedDir;
 
@@ -28,17 +29,62 @@ class GalleryLocalStore {
     return mediaId.replaceAll(RegExp(r'[^a-zA-Z0-9_-]'), '_');
   }
 
+  static String _formatDateSlug(String? eventDate) {
+    if (eventDate == null || eventDate.trim().isEmpty) return '';
+    try {
+      final dt = DateTime.tryParse(eventDate);
+      if (dt != null) {
+        final y = dt.year.toString().padLeft(4, '0');
+        final m = dt.month.toString().padLeft(2, '0');
+        final d = dt.day.toString().padLeft(2, '0');
+        return '$y-$m-$d';
+      }
+    } catch (_) {}
+    final cleaned = eventDate.replaceAll(RegExp(r'[^0-9-]'), '');
+    return cleaned.length >= 10 ? cleaned.substring(0, 10) : cleaned;
+  }
+
   /// Check if local file exists in Veyho App Space
-  static Future<File?> getLocalImageFile(String mediaId, {bool isThumbnail = false}) async {
+  static Future<File?> getLocalImageFile(
+    String mediaId, {
+    String? eventDate,
+    bool isThumbnail = false,
+  }) async {
     try {
       final dir = await _galleryDir;
       final prefix = isThumbnail ? 'thumb' : 'full';
       final safeId = _sanitizeId(mediaId);
-      final file = File('${dir.path}/${prefix}_$safeId.jpg');
-      if (await file.exists()) {
-        final length = await file.length();
-        if (length > 0) return file;
+      final dateSlug = _formatDateSlug(eventDate);
+
+      // 1. Try date-prefixed file: e.g. thumb_2026-04-10_media123.jpg
+      if (dateSlug.isNotEmpty) {
+        final datedFile = File('${dir.path}/${prefix}_${dateSlug}_$safeId.jpg');
+        if (await datedFile.exists() && await datedFile.length() > 0) {
+          return datedFile;
+        }
       }
+
+      // 2. Try legacy file: e.g. thumb_media123.jpg
+      final legacyFile = File('${dir.path}/${prefix}_$safeId.jpg');
+      if (await legacyFile.exists() && await legacyFile.length() > 0) {
+        return legacyFile;
+      }
+
+      // 3. Fallback: check if any file with this safeId exists for this prefix
+      if (await dir.exists()) {
+        final entities = dir.listSync();
+        for (final entity in entities) {
+          if (entity is File) {
+            final name = entity.uri.pathSegments.isNotEmpty
+                ? entity.uri.pathSegments.last
+                : entity.path.split(Platform.pathSeparator).last;
+            if (name.startsWith('${prefix}_') && name.endsWith('_$safeId.jpg')) {
+              if (await entity.length() > 0) return entity;
+            }
+          }
+        }
+      }
+
       return null;
     } catch (_) {
       return null;
@@ -49,13 +95,20 @@ class GalleryLocalStore {
   static Future<File?> saveImageBytes(
     String mediaId,
     Uint8List bytes, {
+    String? eventDate,
     bool isThumbnail = false,
   }) async {
     try {
       final dir = await _galleryDir;
       final prefix = isThumbnail ? 'thumb' : 'full';
       final safeId = _sanitizeId(mediaId);
-      final file = File('${dir.path}/${prefix}_$safeId.jpg');
+      final dateSlug = _formatDateSlug(eventDate);
+
+      final filename = dateSlug.isNotEmpty
+          ? '${prefix}_${dateSlug}_$safeId.jpg'
+          : '${prefix}_$safeId.jpg';
+
+      final file = File('${dir.path}/$filename');
       await file.writeAsBytes(bytes, flush: true);
       return file;
     } catch (_) {
@@ -67,10 +120,15 @@ class GalleryLocalStore {
   static Future<File?> getOrDownloadImage(
     String mediaId,
     String url, {
+    String? eventDate,
     bool isThumbnail = false,
   }) async {
     // 1. Check local flash storage first
-    final existing = await getLocalImageFile(mediaId, isThumbnail: isThumbnail);
+    final existing = await getLocalImageFile(
+      mediaId,
+      eventDate: eventDate,
+      isThumbnail: isThumbnail,
+    );
     if (existing != null) {
       return existing;
     }
@@ -82,12 +140,70 @@ class GalleryLocalStore {
       final uri = Uri.parse(url);
       final response = await http.get(uri);
       if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
-        return await saveImageBytes(mediaId, response.bodyBytes, isThumbnail: isThumbnail);
+        return await saveImageBytes(
+          mediaId,
+          response.bodyBytes,
+          eventDate: eventDate,
+          isThumbnail: isThumbnail,
+        );
       }
     } catch (_) {
       // Return null on failure, widget displays error placeholder
     }
     return null;
+  }
+
+  /// Automatically cleans up locally stored gallery photos belonging to prior academic years.
+  /// Runs asynchronously in background to ensure zero UI delay.
+  static Future<int> autoCleanupPriorAcademicYear(DateTime activeAcademicYearStartDate) async {
+    int deletedCount = 0;
+    try {
+      final dir = await _galleryDir;
+      if (!await dir.exists()) return 0;
+
+      final entities = dir.listSync();
+      final datePattern = RegExp(r'^(thumb|full)_(\d{4}-\d{2}-\d{2})_(.+)\.jpg$');
+
+      for (final entity in entities) {
+        if (entity is! File) continue;
+        final filename = entity.uri.pathSegments.isNotEmpty
+            ? entity.uri.pathSegments.last
+            : entity.path.split(Platform.pathSeparator).last;
+
+        if (!filename.endsWith('.jpg')) continue;
+
+        final match = datePattern.firstMatch(filename);
+        if (match != null) {
+          final dateStr = match.group(2);
+          if (dateStr != null) {
+            final fileDate = DateTime.tryParse(dateStr);
+            if (fileDate != null && fileDate.isBefore(activeAcademicYearStartDate)) {
+              await entity.delete();
+              deletedCount++;
+              continue;
+            }
+          }
+        } else {
+          // Legacy file without date prefix: check physical disk modification date
+          try {
+            final lastModified = await entity.lastModified();
+            if (lastModified.isBefore(activeAcademicYearStartDate)) {
+              await entity.delete();
+              deletedCount++;
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (deletedCount > 0) {
+        debugPrint(
+          'Veyho Gallery Auto-Cleanup: Freed $deletedCount prior-year artifacts (Threshold: $activeAcademicYearStartDate)',
+        );
+      }
+    } catch (e) {
+      debugPrint('Veyho Gallery Auto-Cleanup notice: $e');
+    }
+    return deletedCount;
   }
 }
 
@@ -96,6 +212,7 @@ class GalleryLocalStore {
 class VeyhoCachedImage extends StatefulWidget {
   final String mediaId;
   final String url;
+  final String? eventDate;
   final bool isThumbnail;
   final BoxFit fit;
   final double? width;
@@ -107,6 +224,7 @@ class VeyhoCachedImage extends StatefulWidget {
     super.key,
     required this.mediaId,
     required this.url,
+    this.eventDate,
     this.isThumbnail = true,
     this.fit = BoxFit.cover,
     this.width,
@@ -132,7 +250,9 @@ class _VeyhoCachedImageState extends State<VeyhoCachedImage> {
   @override
   void didUpdateWidget(covariant VeyhoCachedImage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.mediaId != widget.mediaId || oldWidget.url != widget.url) {
+    if (oldWidget.mediaId != widget.mediaId ||
+        oldWidget.url != widget.url ||
+        oldWidget.eventDate != widget.eventDate) {
       _loadImage();
     }
   }
@@ -141,6 +261,7 @@ class _VeyhoCachedImageState extends State<VeyhoCachedImage> {
     // Quick check if already on local flash disk
     final cached = await GalleryLocalStore.getLocalImageFile(
       widget.mediaId,
+      eventDate: widget.eventDate,
       isThumbnail: widget.isThumbnail,
     );
     if (cached != null) {
@@ -163,6 +284,7 @@ class _VeyhoCachedImageState extends State<VeyhoCachedImage> {
     final downloaded = await GalleryLocalStore.getOrDownloadImage(
       widget.mediaId,
       widget.url,
+      eventDate: widget.eventDate,
       isThumbnail: widget.isThumbnail,
     );
 

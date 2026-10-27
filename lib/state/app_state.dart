@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../models/models.dart';
 import '../services/api_service.dart';
 import '../services/parent_api_service.dart';
+import '../services/gallery_local_store.dart';
 
 class AppState extends ChangeNotifier {
   SharedPreferences? _prefs;
@@ -557,6 +558,15 @@ class AppState extends ChangeNotifier {
         targetYearId = current.id;
       }
       _selectedAcademicYearId = targetYearId;
+
+      // Auto-cleanup locally cached gallery photos belonging to prior academic years
+      if (_academicYears.isNotEmpty) {
+        final currentActiveYear = _academicYears.firstWhere(
+          (y) => y.isCurrent,
+          orElse: () => _academicYears.first,
+        );
+        GalleryLocalStore.autoCleanupPriorAcademicYear(currentActiveYear.startDate);
+      }
 
       // 2. Fetch holidays for the academic year
       final holidaysRaw = await ParentApiService.getHolidays(academicYearId: targetYearId);

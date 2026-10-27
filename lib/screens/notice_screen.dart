@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../state/app_state.dart';
 import '../models/models.dart';
 import '../constants/colors.dart';
+import 'secondary_screens.dart';
 
 enum NoticeFilterType {
   all,
@@ -365,7 +366,7 @@ class _NoticeScreenState extends State<NoticeScreen> {
                             height: 1.45,
                           ),
                         ),
-                        if (notice.attachments.isNotEmpty) ...[
+                        if (notice.displayAttachments.isNotEmpty) ...[
                           const SizedBox(height: 10),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -380,11 +381,36 @@ class _NoticeScreenState extends State<NoticeScreen> {
                                 const Icon(LucideIcons.paperclip, size: 12, color: Color(0xFF1D4ED8)),
                                 const SizedBox(width: 4),
                                 Text(
-                                  '${notice.attachments.length} ${notice.attachments.length == 1 ? 'file' : 'files'} attached',
+                                  '${notice.displayAttachments.length} ${notice.displayAttachments.length == 1 ? 'file' : 'files'} attached',
                                   style: const TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w600,
                                     color: Color(0xFF1D4ED8),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ] else if (notice.isGalleryNotice) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryTeal.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.primaryTeal.withValues(alpha: 0.25)),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(LucideIcons.images, size: 12, color: AppColors.primaryTeal),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Photos in Gallery',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.primaryTeal,
                                   ),
                                 ),
                               ],
@@ -752,6 +778,72 @@ class NoticeDetailScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _navigateToGallery(BuildContext context, Notice notice) async {
+    final appState = Provider.of<AppState>(context, listen: false);
+    String? eventId = notice.eventId;
+    if (eventId == null || eventId.isEmpty) {
+      if (notice.externalUrl != null && notice.externalUrl!.isNotEmpty) {
+        final uri = Uri.tryParse(notice.externalUrl!);
+        eventId = uri?.queryParameters['eventId'];
+      }
+    }
+
+    if (eventId != null && eventId.isNotEmpty) {
+      Album? targetAlbum;
+      try {
+        targetAlbum = appState.albums.firstWhere(
+          (a) => a.eventId == eventId || a.id == eventId,
+        );
+      } catch (_) {}
+
+      if (targetAlbum != null) {
+        if (context.mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AlbumDetailScreen(album: targetAlbum),
+            ),
+          );
+        }
+        return;
+      }
+
+      // If album is not in memory yet, show brief loader and fetch gallery
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(
+          child: CircularProgressIndicator(color: AppColors.primaryTeal),
+        ),
+      );
+      try {
+        await appState.fetchGallery(appState.currentChild.id);
+      } catch (_) {}
+      if (context.mounted) {
+        Navigator.pop(context); // close loader
+        try {
+          targetAlbum = appState.albums.firstWhere(
+            (a) => a.eventId == eventId || a.id == eventId,
+          );
+        } catch (_) {}
+        if (targetAlbum != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AlbumDetailScreen(album: targetAlbum),
+            ),
+          );
+          return;
+        }
+      }
+    }
+
+    // Fallback: open main GalleryScreen
+    if (context.mounted) {
+      Navigator.pushNamed(context, '/gallery');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasCta = notice.cta != null;
@@ -940,7 +1032,7 @@ class NoticeDetailScreen extends StatelessWidget {
             ),
 
             // Attachments Section
-            if (notice.attachments.isNotEmpty) ...[
+            if (notice.displayAttachments.isNotEmpty) ...[
               const SizedBox(height: 18),
               Container(
                 decoration: BoxDecoration(
@@ -964,7 +1056,7 @@ class NoticeDetailScreen extends StatelessWidget {
                         const Icon(LucideIcons.paperclip, color: AppColors.primaryTeal, size: 16),
                         const SizedBox(width: 8),
                         Text(
-                          'ATTACHMENTS (${notice.attachments.length})',
+                          'ATTACHMENTS (${notice.displayAttachments.length})',
                           style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
@@ -975,7 +1067,7 @@ class NoticeDetailScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 14),
-                    ...notice.attachments.map((att) {
+                    ...notice.displayAttachments.map((att) {
                       final isPdf = att.name.toLowerCase().endsWith('.pdf') ||
                           att.contentType.contains('pdf');
 
@@ -1043,8 +1135,31 @@ class NoticeDetailScreen extends StatelessWidget {
               ),
             ],
 
-            // External CTA Action
-            if (hasExternalUrl) ...[
+            // External CTA Action or Gallery Deep Link
+            if (notice.isGalleryNotice) ...[
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: () => _navigateToGallery(context, notice),
+                  icon: const Icon(LucideIcons.images, size: 18),
+                  label: Text(
+                    notice.externalUrlLabel ?? 'View Album in Gallery',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryTeal,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    elevation: 2,
+                    shadowColor: AppColors.primaryTeal.withValues(alpha: 0.3),
+                  ),
+                ),
+              ),
+            ] else if (hasExternalUrl) ...[
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,

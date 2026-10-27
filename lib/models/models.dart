@@ -240,6 +240,21 @@ class NoticeAttachment {
     if (sizeBytes < 1024 * 1024) return '${(sizeBytes / 1024).toStringAsFixed(1)} KB';
     return '${(sizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
+
+  bool get isMedia {
+    final n = name.toLowerCase();
+    final c = contentType.toLowerCase();
+    return c.startsWith('image/') ||
+        c.startsWith('video/') ||
+        n.endsWith('.jpg') ||
+        n.endsWith('.jpeg') ||
+        n.endsWith('.png') ||
+        n.endsWith('.webp') ||
+        n.endsWith('.gif') ||
+        n.endsWith('.mp4') ||
+        n.endsWith('.mov') ||
+        n.endsWith('.webm');
+  }
 }
 
 class Notice {
@@ -256,6 +271,7 @@ class Notice {
   final List<NoticeAttachment> attachments;
   final String? externalUrl;
   final String? externalUrlLabel;
+  final String? eventId;
   final bool isRead;
 
   Notice({
@@ -272,6 +288,7 @@ class Notice {
     this.attachments = const [],
     this.externalUrl,
     this.externalUrlLabel,
+    this.eventId,
     this.isRead = false,
   });
 
@@ -323,6 +340,8 @@ class Notice {
     String broadcastType = rawType ?? '';
     if (broadcastType.isEmpty) {
       broadcastType = cat.contains('Class') ? 'class_notice' : 'school_notice';
+    } else if (cat == 'Class Notice') {
+      broadcastType = 'class_notice';
     }
 
     return Notice(
@@ -339,14 +358,25 @@ class Notice {
       attachments: parsedAttachments,
       externalUrl: json['externalUrl']?.toString(),
       externalUrlLabel: json['externalUrlLabel']?.toString(),
+      eventId: json['eventId']?.toString(),
       isRead: json['isRead'] == true,
     );
   }
 
-  bool get isSchoolNotice => broadcastType == 'school_notice' || (!isClassNotice && category.toLowerCase().contains('school'));
   bool get isClassNotice => broadcastType == 'class_notice' || category.toLowerCase().contains('class');
+  bool get isSchoolNotice => !isClassNotice;
   bool get isHomework => broadcastType == 'homework';
   bool get isClasswork => broadcastType == 'classwork';
+
+  bool get isGalleryNotice =>
+      (eventId != null && eventId!.isNotEmpty) ||
+      (externalUrl != null &&
+          (externalUrl!.startsWith('veyho://gallery') ||
+              externalUrl!.contains('/gallery') ||
+              (externalUrlLabel?.toLowerCase().contains('gallery') ?? false)));
+
+  List<NoticeAttachment> get nonMediaAttachments => attachments.where((a) => !a.isMedia).toList();
+  List<NoticeAttachment> get displayAttachments => isGalleryNotice ? nonMediaAttachments : attachments;
 
   DateTime get dateTime {
     if (publishedAt != null && publishedAt!.isNotEmpty) {
@@ -377,11 +407,12 @@ class Notice {
       'attachments': attachments.map((a) => a.toJson()).toList(),
       'externalUrl': externalUrl,
       'externalUrlLabel': externalUrlLabel,
+      'eventId': eventId,
       'isRead': isRead,
     };
   }
 
-  Notice copyWith({bool? isRead, String? broadcastType}) {
+  Notice copyWith({bool? isRead, String? broadcastType, String? eventId}) {
     return Notice(
       id: id,
       source: source,
@@ -396,6 +427,7 @@ class Notice {
       attachments: attachments,
       externalUrl: externalUrl,
       externalUrlLabel: externalUrlLabel,
+      eventId: eventId ?? this.eventId,
       isRead: isRead ?? this.isRead,
     );
   }

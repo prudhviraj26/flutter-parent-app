@@ -177,6 +177,29 @@ class ApiService {
     }
   }
 
+  // DELETE Request with Auto-Token Refresh Retry
+  static Future<dynamic> delete(
+    String endpoint, {
+    bool requireAuth = true,
+    bool isRetry = false,
+  }) async {
+    final url = Uri.parse('$baseUrl$endpoint');
+    final headers = await _getHeaders(requireAuth: requireAuth);
+
+    try {
+      final response = await http.delete(url, headers: headers);
+      if (response.statusCode == 401 && requireAuth && !isRetry) {
+        final refreshed = await refreshTokenSilently();
+        if (refreshed) {
+          return await delete(endpoint, requireAuth: requireAuth, isRetry: true);
+        }
+      }
+      return _processResponse(response);
+    } catch (e) {
+      throw Exception('Network error: $e');
+    }
+  }
+
   // Response Processing
   static dynamic _processResponse(http.Response response) {
     final statusCode = response.statusCode;

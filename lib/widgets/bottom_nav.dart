@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../constants/colors.dart';
+import '../state/app_state.dart';
 
 class BottomNav extends StatelessWidget {
   final String active;
@@ -10,6 +12,9 @@ class BottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appState = Provider.of<AppState>(context);
+    final unreadCount = appState.unreadTeacherMessagesCount;
+
     return Container(
       decoration: const BoxDecoration(
         color: AppColors.card,
@@ -40,6 +45,7 @@ class BottomNav extends StatelessWidget {
               icon: LucideIcons.messageCircle,
               label: 'talkToTeacher'.tr(),
               isActive: active == 'teacher',
+              badgeCount: unreadCount,
               onTap: () {
                 if (active != 'teacher') {
                   Navigator.pushReplacementNamed(context, '/talk-to-teacher');
@@ -70,6 +76,7 @@ class BottomNav extends StatelessWidget {
     required String label,
     required bool isActive,
     required VoidCallback onTap,
+    int badgeCount = 0,
   }) {
     final Color color = isActive ? AppColors.primaryTeal : AppColors.textMuted;
     return GestureDetector(
@@ -78,7 +85,34 @@ class BottomNav extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: color, size: 24),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(icon, color: color, size: 24),
+              if (badgeCount > 0)
+                Positioned(
+                  top: -4,
+                  right: -8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: AppColors.secondaryOrange,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                    alignment: Alignment.center,
+                    child: Text(
+                      badgeCount > 99 ? '99+' : badgeCount.toString(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
           const SizedBox(height: 4),
           Text(
             label,

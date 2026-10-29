@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:easy_localization/easy_localization.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../state/app_state.dart';
 import '../models/models.dart';
 import '../constants/colors.dart';
+import '../services/attachment_local_store.dart';
 
 enum ClassUpdateFilterType { all, unread, classwork, homework }
 
@@ -742,24 +742,15 @@ class ClassUpdateDetailScreen extends StatelessWidget {
 
   const ClassUpdateDetailScreen({super.key, required this.update});
 
-  Future<void> _openUrl(BuildContext context, String url) async {
-    try {
-      final uri = Uri.parse(url);
-      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!launched) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not open attachment link')),
-          );
-        }
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error opening link: $e')),
-        );
-      }
-    }
+  Future<void> _openAttachment(BuildContext context, String fileUrl) async {
+    final fileName = fileUrl.split('/').last.split('?').first;
+    await AttachmentLocalStore.openAttachment(
+      context: context,
+      key: fileUrl,
+      url: fileUrl,
+      dateStr: update.date,
+      originalFileName: fileName,
+    );
   }
 
   @override
@@ -1005,7 +996,7 @@ class ClassUpdateDetailScreen extends StatelessWidget {
                           color: Colors.transparent,
                           child: InkWell(
                             borderRadius: BorderRadius.circular(12),
-                            onTap: () => _openUrl(context, file),
+                            onTap: () => _openAttachment(context, file),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                               child: Row(

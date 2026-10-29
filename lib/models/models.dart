@@ -76,25 +76,95 @@ class Child {
   }
 }
 
+class SchoolWorkingHours {
+  final String startTime;
+  final String endTime;
+  final List<String> workingDays;
+
+  SchoolWorkingHours({
+    this.startTime = '08:00',
+    this.endTime = '15:30',
+    this.workingDays = const ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+  });
+
+  factory SchoolWorkingHours.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return SchoolWorkingHours();
+    return SchoolWorkingHours(
+      startTime: (json['startTime'] ?? '08:00').toString(),
+      endTime: (json['endTime'] ?? '15:30').toString(),
+      workingDays: (json['workingDays'] as List<dynamic>?)?.map((e) => e.toString().toLowerCase()).toList() ??
+          ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+    );
+  }
+
+  String get formattedSchedule {
+    String formatTime(String time24) {
+      try {
+        final parts = time24.split(':');
+        int hour = int.parse(parts[0]);
+        int min = int.parse(parts[1]);
+        final period = hour >= 12 ? 'PM' : 'AM';
+        final hour12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+        return '$hour12:${min.toString().padLeft(2, '0')} $period';
+      } catch (_) {
+        return time24;
+      }
+    }
+
+    final startStr = formatTime(startTime);
+    final endStr = formatTime(endTime);
+
+    String daysStr = 'Mon – Fri';
+    if (workingDays.contains('saturday')) {
+      daysStr = 'Mon – Sat';
+    }
+    return '$startStr – $endStr ($daysStr)';
+  }
+}
+
 class Message {
   final String id;
   final String text;
   final String sender; // 'teacher' | 'parent'
   final String timestamp;
+  final String? readAt;
+  final bool isDeleted;
+  final String status; // 'sending' | 'sent' | 'delivered' | 'read'
 
   Message({
     required this.id,
     required this.text,
     required this.sender,
     required this.timestamp,
+    this.readAt,
+    this.isDeleted = false,
+    this.status = 'sent',
   });
 
+  bool get isRead => readAt != null || status == 'read';
+
   factory Message.fromJson(Map<String, dynamic> json) {
+    final senderType = (json['sender'] ?? json['senderType'] ?? 'parent').toString();
+    final bodyText = (json['text'] ?? json['body'] ?? '').toString();
+    final readAtStr = json['readAt']?.toString();
+    final isDel = json['isDeleted'] as bool? ?? false;
+
+    // Derive WhatsApp status
+    String status = 'sent';
+    if (readAtStr != null && readAtStr.isNotEmpty) {
+      status = 'read';
+    } else {
+      status = 'delivered';
+    }
+
     return Message(
-      id: json['id'] as String,
-      text: json['text'] as String,
-      sender: json['sender'] as String,
-      timestamp: json['timestamp'] as String,
+      id: (json['id'] ?? '').toString(),
+      text: bodyText,
+      sender: senderType,
+      timestamp: (json['timestamp'] ?? json['createdAt'] ?? '').toString(),
+      readAt: readAtStr,
+      isDeleted: isDel,
+      status: status,
     );
   }
 
@@ -104,6 +174,9 @@ class Message {
       'text': text,
       'sender': sender,
       'timestamp': timestamp,
+      'readAt': readAt,
+      'isDeleted': isDeleted,
+      'status': status,
     };
   }
 }
@@ -116,6 +189,9 @@ class Teacher {
   final String teacherClass; // mapped from class
   final bool isClassTeacher;
   String? lastMessage;
+  DateTime? lastMessageAt;
+  int unreadCount;
+  bool unread;
   final List<Message> messages;
 
   Teacher({
@@ -126,6 +202,9 @@ class Teacher {
     required this.teacherClass,
     this.isClassTeacher = false,
     this.lastMessage,
+    this.lastMessageAt,
+    this.unreadCount = 0,
+    this.unread = false,
     this.messages = const [],
   });
 
@@ -154,6 +233,19 @@ class Teacher {
       subs = [json['subject'].toString()];
     }
 
+    DateTime? lAt;
+    if (json['lastMessageAt'] != null) {
+      try {
+        lAt = DateTime.parse(json['lastMessageAt'].toString());
+      } catch (_) {}
+    } else if (msgs.isNotEmpty) {
+      try {
+        lAt = DateTime.parse(msgs.last.timestamp);
+      } catch (_) {}
+    }
+
+    final uCount = json['parentUnreadCount'] as int? ?? json['unreadCount'] as int? ?? 0;
+
     return Teacher(
       id: (json['id'] ?? '').toString(),
       name: (json['name'] ?? '').toString(),
@@ -162,6 +254,9 @@ class Teacher {
       teacherClass: (json['class'] ?? json['teacherClass'] ?? '').toString(),
       isClassTeacher: json['isClassTeacher'] as bool? ?? false,
       lastMessage: json['lastMessage'] as String?,
+      lastMessageAt: lAt,
+      unreadCount: uCount,
+      unread: uCount > 0,
       messages: msgs,
     );
   }
@@ -175,6 +270,9 @@ class Teacher {
       'class': teacherClass,
       'isClassTeacher': isClassTeacher,
       'lastMessage': lastMessage,
+      'lastMessageAt': lastMessageAt?.toIso8601String(),
+      'unreadCount': unreadCount,
+      'unread': unread,
       'messages': messages.map((e) => e.toJson()).toList(),
     };
   }
@@ -206,12 +304,14 @@ class NoticeAttachment {
   final String url;
   final int sizeBytes;
   final String contentType;
+  final String? blobPath;
 
   NoticeAttachment({
     required this.name,
     required this.url,
     this.sizeBytes = 0,
     this.contentType = '',
+    this.blobPath,
   });
 
   factory NoticeAttachment.fromJson(Map<String, dynamic> json) {
@@ -222,6 +322,7 @@ class NoticeAttachment {
           ? json['sizeBytes'] as int
           : int.tryParse(json['sizeBytes']?.toString() ?? '0') ?? 0,
       contentType: (json['contentType'] ?? '').toString(),
+      blobPath: json['blobPath']?.toString(),
     );
   }
 
@@ -231,6 +332,7 @@ class NoticeAttachment {
       'url': url,
       'sizeBytes': sizeBytes,
       'contentType': contentType,
+      if (blobPath != null) 'blobPath': blobPath,
     };
   }
 

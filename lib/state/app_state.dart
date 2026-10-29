@@ -7,6 +7,7 @@ import '../models/models.dart';
 import '../services/api_service.dart';
 import '../services/parent_api_service.dart';
 import '../services/gallery_local_store.dart';
+import '../services/attachment_local_store.dart';
 
 class AppState extends ChangeNotifier {
   SharedPreferences? _prefs;
@@ -576,6 +577,7 @@ class AppState extends ChangeNotifier {
           orElse: () => _academicYears.first,
         );
         GalleryLocalStore.autoCleanupPriorAcademicYear(currentActiveYear.startDate);
+        AttachmentLocalStore.autoCleanupPriorAcademicYear(currentActiveYear.startDate);
       }
 
       // 2. Fetch holidays for the academic year
@@ -1015,6 +1017,18 @@ class AppState extends ChangeNotifier {
     }
   }
 
+  SchoolWorkingHours? _schoolWorkingHours;
+  SchoolWorkingHours get schoolWorkingHours => _schoolWorkingHours ?? SchoolWorkingHours();
+
+  int get unreadTeacherMessagesCount {
+    final list = teachers;
+    int count = 0;
+    for (final t in list) {
+      count += t.unreadCount;
+    }
+    return count;
+  }
+
   List<Notice> get notices => _childNoticesDb[currentChild.id] ?? _noticesDb;
   List<ClassUpdate> get classUpdates => _classUpdatesDb[currentChild.id] ?? [];
   List<Teacher> get teachers => _teachersDb[currentChild.id] ?? (_teachersDb.values.isNotEmpty ? _teachersDb.values.first : []);
@@ -1033,30 +1047,167 @@ class AppState extends ChangeNotifier {
   List<ExamResult> get examResults => _examResultsDb;
   List<Book> get books => _booksDb[currentChild.id] ?? [];
 
-  // Message Teacher
-  void addParentMessage(String teacherId, String text) {
+  // Fetch active chat thread with class teacher for current child
+  Future<void> fetchChatForActiveChild() async {
+    if (currentChild.id.isEmpty) return;
+    try {
+      final res = await ParentApiService.getChatThread(currentChild.id);
+      if (res['schoolWorkingHours'] != null) {
+        _schoolWorkingHours = SchoolWorkingHours.fromJson(res['schoolWorkingHours'] as Map<String, dynamic>?);
+      }
+      final threadId = res['threadId']?.toString();
+      final teacherName = res['teacherName']?.toString() ?? 'Class Teacher';
+      final msgsJson = res['messages'] as List<dynamic>? ?? [];
+      final msgs = msgsJson.map((m) => Message.fromJson(m as Map<String, dynamic>)).toList();
+      final uCount = res['parentUnreadCount'] as int? ?? 0;
+
+      DateTime? lastMsgAt;
+      if (msgs.isNotEmpty) {
+        try {
+          lastMsgAt = DateTime.parse(msgs.last.timestamp);
+        } catch (_) {}
+      }
+
+      final list = _teachersDb[currentChild.id] ?? [];
+      final idx = list.indexWhere((t) => t.isClassTeacher || t.id == threadId);
+      final teacherEntry = Teacher(
+        id: threadId ?? (idx != -1 ? list[idx].id : 'ct_${currentChild.id}'),
+        name: teacherName,
+        subject: 'Class Teacher',
+        teacherClass: currentChild.grade,
+        isClassTeacher: true,
+        lastMessage: msgs.isNotEmpty ? msgs.last.text : null,
+        lastMessageAt: lastMsgAt,
+        unreadCount: uCount,
+        unread: uCount > 0,
+        messages: msgs,
+      );
+
+      if (idx != -1) {
+        list[idx] = teacherEntry;
+      } else {
+        list.insert(0, teacherEntry);
+      }
+      _teachersDb[currentChild.id] = list;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error fetching chat for child: $e');
+    }
+  }
+
+  // Mark teacher conversation as read
+  void markTeacherChatRead(String teacherId) {
     final list = _teachersDb[currentChild.id] ?? [];
     final idx = list.indexWhere((t) => t.id == teacherId);
     if (idx != -1) {
-      final now = DateTime.now();
-      final timeStr = "${now.hour > 12 ? now.hour - 12 : now.hour}:${now.minute.toString().padLeft(2, '0')} ${now.hour >= 12 ? 'PM' : 'AM'}";
-      
-      final newMsg = Message(
-        id: "M${now.millisecondsSinceEpoch}",
-        text: text,
-        sender: 'parent',
-        timestamp: timeStr,
-      );
+      list[idx].unreadCount = 0;
+      list[idx].unread = false;
+      notifyListeners();
+    }
+    if (currentChild.id.isNotEmpty) {
+      ParentApiService.markChatThreadRead(currentChild.id).catchError((_) => false);
+    }
+  }
 
+  // Delta polling for active teacher chat
+  Future<void> pollChatDelta(String teacherId) async {
+    if (currentChild.id.isEmpty) return;
+    final list = _teachersDb[currentChild.id] ?? [];
+    final idx = list.indexWhere((t) => t.id == teacherId);
+    if (idx == -1) return;
+
+    String? latestTime;
+    if (list[idx].messages.isNotEmpty) {
+      latestTime = list[idx].messages.last.timestamp;
+    }
+
+    try {
+      final res = await ParentApiService.getChatDeltaMessages(currentChild.id, since: latestTime);
+      final msgsJson = res['messages'] as List<dynamic>? ?? [];
+      if (msgsJson.isNotEmpty) {
+        for (var m in msgsJson) {
+          final parsed = Message.fromJson(m as Map<String, dynamic>);
+          final existingIdx = list[idx].messages.indexWhere((e) => e.id == parsed.id);
+          if (existingIdx != -1) {
+            list[idx].messages[existingIdx] = parsed;
+          } else {
+            list[idx].messages.add(parsed);
+          }
+          list[idx].lastMessage = parsed.text;
+          try {
+            list[idx].lastMessageAt = DateTime.parse(parsed.timestamp);
+          } catch (_) {}
+        }
+        notifyListeners();
+      }
+    } catch (_) {}
+  }
+
+  // Soft delete a message
+  Future<void> deleteParentMessage(String teacherId, String messageId) async {
+    final list = _teachersDb[currentChild.id] ?? [];
+    final idx = list.indexWhere((t) => t.id == teacherId);
+    if (idx != -1) {
+      final msgIdx = list[idx].messages.indexWhere((m) => m.id == messageId);
+      if (msgIdx != -1) {
+        final m = list[idx].messages[msgIdx];
+        list[idx].messages[msgIdx] = Message(
+          id: m.id,
+          text: 'This message was deleted',
+          sender: m.sender,
+          timestamp: m.timestamp,
+          readAt: m.readAt,
+          isDeleted: true,
+          status: m.status,
+        );
+        notifyListeners();
+      }
+    }
+    if (currentChild.id.isNotEmpty) {
+      ParentApiService.deleteChatMessage(currentChild.id, messageId).catchError((_) => false);
+    }
+  }
+
+  // Message Teacher with optimistic append and status updates
+  void addParentMessage(String teacherId, String text) {
+    final list = _teachersDb[currentChild.id] ?? [];
+    final idx = list.indexWhere((t) => t.id == teacherId);
+    final now = DateTime.now();
+    final timeStr = "${now.hour > 12 ? now.hour - 12 : now.hour}:${now.minute.toString().padLeft(2, '0')} ${now.hour >= 12 ? 'PM' : 'AM'}";
+    
+    final tempId = "temp_${now.millisecondsSinceEpoch}";
+    final newMsg = Message(
+      id: tempId,
+      text: text,
+      sender: 'parent',
+      timestamp: timeStr,
+      status: 'sending',
+    );
+
+    if (idx != -1) {
       list[idx].messages.add(newMsg);
       list[idx].lastMessage = text;
+      list[idx].lastMessageAt = now;
       notifyListeners();
     }
 
     if (currentChild.id.isNotEmpty) {
-      ParentApiService.sendMessage(currentChild.id, text).catchError((e) {
+      ParentApiService.sendMessage(currentChild.id, text).then((res) {
+        if (idx != -1 && res['id'] != null) {
+          final mIdx = list[idx].messages.indexWhere((m) => m.id == tempId);
+          if (mIdx != -1) {
+            list[idx].messages[mIdx] = Message(
+              id: res['id'].toString(),
+              text: text,
+              sender: 'parent',
+              timestamp: timeStr,
+              status: 'delivered',
+            );
+            notifyListeners();
+          }
+        }
+      }).catchError((e) {
         debugPrint('API message send note: $e');
-        return <String, dynamic>{};
       });
     }
   }

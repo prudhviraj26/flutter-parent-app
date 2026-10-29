@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../state/app_state.dart';
 import '../models/models.dart';
 import '../constants/colors.dart';
+import '../services/attachment_local_store.dart';
 import 'secondary_screens.dart';
 
 enum NoticeFilterType {
@@ -758,6 +759,17 @@ class NoticeDetailScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _openAttachment(BuildContext context, NoticeAttachment att) async {
+    final key = att.blobPath != null && att.blobPath!.isNotEmpty ? att.blobPath! : att.url;
+    await AttachmentLocalStore.openAttachment(
+      context: context,
+      key: key,
+      url: att.url,
+      dateStr: notice.publishedAt ?? notice.date,
+      originalFileName: att.name,
+    );
+  }
+
   Future<void> _openUrl(BuildContext context, String url) async {
     try {
       final uri = Uri.parse(url);
@@ -1113,7 +1125,7 @@ class NoticeDetailScreen extends StatelessWidget {
                               : null,
                           trailing: ElevatedButton.icon(
                             onPressed: att.url.isNotEmpty
-                                ? () => _openUrl(context, att.url)
+                                ? () => _openAttachment(context, att)
                                 : null,
                             icon: const Icon(LucideIcons.externalLink, size: 14),
                             label: const Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),

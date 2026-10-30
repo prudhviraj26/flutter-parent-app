@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'state/app_state.dart';
 import 'constants/colors.dart';
+import 'services/notification_navigation_service.dart';
 
 import 'screens/mandatory_change_password_screen.dart';
 import 'screens/splash_screen.dart';
@@ -28,6 +29,7 @@ class ParentApp extends StatelessWidget {
     return Consumer<AppState>(
       builder: (context, appState, child) {
         return MaterialApp(
+          navigatorKey: NotificationNavigationService.navigatorKey,
           title: 'School Parent App',
           debugShowCheckedModeBanner: false,
           localizationsDelegates: context.localizationDelegates,

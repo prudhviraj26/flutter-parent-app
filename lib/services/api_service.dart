@@ -222,4 +222,80 @@ class ApiService {
       throw Exception(errorMessage);
     }
   }
+
+  // Legal & Clickwrap Endpoints
+  static Future<Map<String, dynamic>?> fetchActiveLegalDocuments() async {
+    try {
+      final res = await get('/legal/active', requireAuth: false);
+      if (res is Map<String, dynamic>) {
+        return res;
+      }
+    } catch (e) {
+      debugPrint('[ApiService] Failed to fetch active legal documents: $e');
+    }
+    return null;
+  }
+
+  static Future<bool> recordLegalConsent({
+    required List<Map<String, dynamic>> consents,
+    String? deviceUuid,
+    String? deviceToken,
+  }) async {
+    try {
+      final payload = <String, dynamic>{
+        'consents': consents,
+      };
+      if (deviceUuid != null) payload['deviceUuid'] = deviceUuid;
+      if (deviceToken != null) payload['deviceToken'] = deviceToken;
+
+      final res = await post('/legal/consent', payload, requireAuth: true);
+      return res != null && res['success'] == true;
+    } catch (e) {
+      debugPrint('[ApiService] Failed to record legal consent: $e');
+      return false;
+    }
+  }
+
+  // Device Token & Push Registration
+  static Future<bool> registerDeviceToken({
+    required String deviceToken,
+    required String platform,
+    String? deviceUuid,
+    String? deviceModel,
+    String? deviceManufacturer,
+    String? osVersion,
+    String? appVersion,
+    String? locale,
+    String? timezone,
+  }) async {
+    try {
+      final payload = <String, dynamic>{
+        'deviceToken': deviceToken,
+        'platform': platform,
+      };
+      if (deviceUuid != null) payload['deviceUuid'] = deviceUuid;
+      if (deviceModel != null) payload['deviceModel'] = deviceModel;
+      if (deviceManufacturer != null) payload['deviceManufacturer'] = deviceManufacturer;
+      if (osVersion != null) payload['osVersion'] = osVersion;
+      if (appVersion != null) payload['appVersion'] = appVersion;
+      if (locale != null) payload['locale'] = locale;
+      if (timezone != null) payload['timezone'] = timezone;
+
+      await post('/communication/device-token', payload, requireAuth: true);
+      return true;
+    } catch (e) {
+      debugPrint('[ApiService] Failed to register device token: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> removeDeviceToken(String deviceToken) async {
+    try {
+      await post('/communication/device-token/remove', {'deviceToken': deviceToken}, requireAuth: true);
+      return true;
+    } catch (e) {
+      debugPrint('[ApiService] Failed to remove device token: $e');
+      return false;
+    }
+  }
 }

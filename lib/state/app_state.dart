@@ -66,6 +66,14 @@ class AppState extends ChangeNotifier {
 
   bool _mustChangePassword = false;
 
+  String? _acceptedTermsVersion;
+  String? _acceptedPrivacyVersion;
+  String? get acceptedTermsVersion => _acceptedTermsVersion;
+  String? get acceptedPrivacyVersion => _acceptedPrivacyVersion;
+
+  Map<String, dynamic>? _activeLegalDocs;
+  Map<String, dynamic>? get activeLegalDocs => _activeLegalDocs;
+
   // Getters
   String get language => _language;
   bool get loggedIn => _loggedIn;
@@ -153,6 +161,8 @@ class AppState extends ChangeNotifier {
         _loggedIn = userData['loggedIn'] as bool? ?? false;
         _mobile = userData['mobile'] as String?;
         _mustChangePassword = userData['mustChangePassword'] as bool? ?? false;
+        _acceptedTermsVersion = userData['acceptedTermsVersion'] as String? ?? _prefs?.getString('veyho_accepted_terms_version');
+        _acceptedPrivacyVersion = userData['acceptedPrivacyVersion'] as String? ?? _prefs?.getString('veyho_accepted_privacy_version');
       } catch (e) {
         _prefs?.remove('veyho_parent_user');
       }
@@ -617,6 +627,70 @@ class AppState extends ChangeNotifier {
     fetchLiveChildData(child.id);
   }
 
+  Future<void> switchToChildById(String studentId) async {
+    if (studentId.isEmpty) return;
+    final idx = _children.indexWhere((c) => c.id == studentId || c.studentId == studentId);
+    if (idx != -1 && _children[idx].id != currentChild.id) {
+      await setCurrentChild(_children[idx]);
+    }
+  }
+
+  // Legal Consent Check & Agreement
+  Future<bool> checkNeedsLegalAssent() async {
+    try {
+      _activeLegalDocs = await ApiService.fetchActiveLegalDocuments();
+      if (_activeLegalDocs == null) return false;
+
+      final terms = _activeLegalDocs?['terms'] as Map<String, dynamic>?;
+      final privacy = _activeLegalDocs?['privacy'] as Map<String, dynamic>?;
+
+      final targetTermsVer = terms?['version']?.toString() ?? 'v1.0.0';
+      final targetPrivacyVer = privacy?['version']?.toString() ?? 'v1.0.0';
+      final termsMajor = terms?['isMajor'] == true;
+      final privacyMajor = privacy?['isMajor'] == true;
+
+      final localTerms = _acceptedTermsVersion ?? _prefs?.getString('veyho_accepted_terms_version');
+      final localPrivacy = _acceptedPrivacyVersion ?? _prefs?.getString('veyho_accepted_privacy_version');
+
+      if (localTerms == null || localPrivacy == null) {
+        return true;
+      }
+
+      if (termsMajor && localTerms != targetTermsVer) {
+        return true;
+      }
+      if (privacyMajor && localPrivacy != targetPrivacyVer) {
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      debugPrint('[AppState] checkNeedsLegalAssent error: $e');
+      return false;
+    }
+  }
+
+  Future<void> onLegalConsentAccepted({
+    required String termsVersion,
+    required String privacyVersion,
+  }) async {
+    _acceptedTermsVersion = termsVersion;
+    _acceptedPrivacyVersion = privacyVersion;
+    await _prefs?.setString('veyho_accepted_terms_version', termsVersion);
+    await _prefs?.setString('veyho_accepted_privacy_version', privacyVersion);
+
+    final userJson = _prefs?.getString('veyho_parent_user');
+    if (userJson != null) {
+      try {
+        final Map<String, dynamic> userData = json.decode(userJson);
+        userData['acceptedTermsVersion'] = termsVersion;
+        userData['acceptedPrivacyVersion'] = privacyVersion;
+        await _prefs?.setString('veyho_parent_user', json.encode(userData));
+      } catch (_) {}
+    }
+    notifyListeners();
+  }
+
   // User Authentication Sets
   Future<bool> login(String mobileNumber, String password) async {
     try {
@@ -634,11 +708,15 @@ class AppState extends ChangeNotifier {
         _loggedIn = true;
         _mobile = mobileNumber;
         _mustChangePassword = res['mustChangePassword'] as bool? ?? false;
+        _acceptedTermsVersion = res['acceptedTermsVersion'] as String? ?? _prefs?.getString('veyho_accepted_terms_version');
+        _acceptedPrivacyVersion = res['acceptedPrivacyVersion'] as String? ?? _prefs?.getString('veyho_accepted_privacy_version');
 
         final userData = {
           'loggedIn': true,
           'mobile': mobileNumber,
           'mustChangePassword': _mustChangePassword,
+          'acceptedTermsVersion': _acceptedTermsVersion,
+          'acceptedPrivacyVersion': _acceptedPrivacyVersion,
         };
         await _prefs?.setString('veyho_parent_user', json.encode(userData));
 

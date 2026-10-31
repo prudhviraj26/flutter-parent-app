@@ -305,7 +305,7 @@ class AppState extends ChangeNotifier {
       final errStr = e.toString().toLowerCase();
       // If token refresh failed and session is terminated/revoked on server
       if (errStr.contains('unauthorized') || errStr.contains('session expired') || errStr.contains('revoked')) {
-        await logout();
+        debugPrint('Live profile unauthorized note: $errStr');
       }
     } finally {
       _isLoadingLive = false;
@@ -317,11 +317,11 @@ class AppState extends ChangeNotifier {
     if (studentId.isEmpty) return;
     try {
       final results = await Future.wait([
-        ParentApiService.getChildAttendance(studentId),
-        ParentApiService.getChildFees(studentId),
-        ParentApiService.getChildNotices(studentId),
-        ParentApiService.getChildTeachers(studentId),
-        ParentApiService.getChildEvents(studentId),
+        ParentApiService.getChildAttendance(studentId).catchError((_) => <String, dynamic>{}),
+        ParentApiService.getChildFees(studentId).catchError((_) => <String, dynamic>{}),
+        ParentApiService.getChildNotices(studentId).catchError((_) => <dynamic>[]),
+        ParentApiService.getChildTeachers(studentId).catchError((_) => <String, dynamic>{}),
+        ParentApiService.getChildEvents(studentId).catchError((_) => <dynamic>[]),
         ParentApiService.getChildHealth(studentId).catchError((_) => <String, dynamic>{}),
         ParentApiService.getChildClassUpdates(studentId).catchError((_) => <dynamic>[]),
         ParentApiService.getChildGallery(studentId).catchError((_) => <Album>[]),

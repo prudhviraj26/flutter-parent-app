@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -13,7 +14,7 @@ class ApiService {
   static const String _tokenKey = 'veyho_parent_access_token';
   static const String _refreshTokenKey = 'veyho_parent_refresh_token';
 
-  static bool _isRefreshing = false;
+  static Completer<bool>? _refreshCompleter;
 
   // Save Tokens securely
   static Future<void> saveTokens({required String accessToken, String? refreshToken}) async {
@@ -41,13 +42,19 @@ class ApiService {
 
   // Silent Token Renewal
   static Future<bool> refreshTokenSilently() async {
-    if (_isRefreshing) return false;
-    _isRefreshing = true;
+    // If a refresh is already in progress, await its completion
+    if (_refreshCompleter != null) {
+      return _refreshCompleter!.future;
+    }
+
+    final completer = Completer<bool>();
+    _refreshCompleter = completer;
+
 
     try {
       final refreshToken = await getRefreshToken();
       if (refreshToken == null || refreshToken.isEmpty) {
-        _isRefreshing = false;
+        if (!completer.isCompleted) completer.complete(false);
         return false;
       }
 
@@ -69,18 +76,21 @@ class ApiService {
           final newRefresh = body['refreshToken'] as String? ?? refreshToken;
           await saveTokens(accessToken: newAccess, refreshToken: newRefresh);
           debugPrint('Parent App silent token refresh succeeded');
-          _isRefreshing = false;
+          if (!completer.isCompleted) completer.complete(true);
           return true;
         }
       } else if (res.statusCode == 401 || res.statusCode == 403) {
         // Refresh token is expired or revoked on server
         debugPrint('Parent App refresh token expired/revoked on server');
-        await clearTokens();
+        debugPrint('Parent App refresh rejected: ${res.statusCode}');
       }
     } catch (e) {
       debugPrint('Parent App silent token refresh failed: $e');
     } finally {
-      _isRefreshing = false;
+      if (!completer.isCompleted) {
+        completer.complete(false);
+      }
+      _refreshCompleter = null;
     }
     return false;
   }
@@ -107,18 +117,20 @@ class ApiService {
     final url = Uri.parse('$baseUrl$endpoint');
     final headers = await _getHeaders(requireAuth: requireAuth);
 
+    final http.Response response;
     try {
-      final response = await http.get(url, headers: headers);
-      if (response.statusCode == 401 && requireAuth && !isRetry) {
-        final refreshed = await refreshTokenSilently();
-        if (refreshed) {
-          return await get(endpoint, requireAuth: requireAuth, isRetry: true);
-        }
-      }
-      return _processResponse(response);
+      response = await http.get(url, headers: headers);
     } catch (e) {
-      throw Exception('Network error: $e');
+      throw Exception('Unable to connect to server. Please check your internet connection.');
     }
+
+    if (response.statusCode == 401 && requireAuth && !isRetry) {
+      final refreshed = await refreshTokenSilently();
+      if (refreshed) {
+        return await get(endpoint, requireAuth: requireAuth, isRetry: true);
+      }
+    }
+    return _processResponse(response);
   }
 
   // POST Request with Auto-Token Refresh Retry
@@ -131,22 +143,24 @@ class ApiService {
     final url = Uri.parse('$baseUrl$endpoint');
     final headers = await _getHeaders(requireAuth: requireAuth);
 
+    final http.Response response;
     try {
-      final response = await http.post(
+      response = await http.post(
         url,
         headers: headers,
         body: jsonEncode(body),
       );
-      if (response.statusCode == 401 && requireAuth && !isRetry) {
-        final refreshed = await refreshTokenSilently();
-        if (refreshed) {
-          return await post(endpoint, body, requireAuth: requireAuth, isRetry: true);
-        }
-      }
-      return _processResponse(response);
     } catch (e) {
-      throw Exception('Network error: $e');
+      throw Exception('Unable to connect to server. Please check your internet connection.');
     }
+
+    if (response.statusCode == 401 && requireAuth && !isRetry) {
+      final refreshed = await refreshTokenSilently();
+      if (refreshed) {
+        return await post(endpoint, body, requireAuth: requireAuth, isRetry: true);
+      }
+    }
+    return _processResponse(response);
   }
 
   // PATCH Request with Auto-Token Refresh Retry
@@ -159,22 +173,24 @@ class ApiService {
     final url = Uri.parse('$baseUrl$endpoint');
     final headers = await _getHeaders(requireAuth: requireAuth);
 
+    final http.Response response;
     try {
-      final response = await http.patch(
+      response = await http.patch(
         url,
         headers: headers,
         body: jsonEncode(body),
       );
-      if (response.statusCode == 401 && requireAuth && !isRetry) {
-        final refreshed = await refreshTokenSilently();
-        if (refreshed) {
-          return await patch(endpoint, body, requireAuth: requireAuth, isRetry: true);
-        }
-      }
-      return _processResponse(response);
     } catch (e) {
-      throw Exception('Network error: $e');
+      throw Exception('Unable to connect to server. Please check your internet connection.');
     }
+
+    if (response.statusCode == 401 && requireAuth && !isRetry) {
+      final refreshed = await refreshTokenSilently();
+      if (refreshed) {
+        return await patch(endpoint, body, requireAuth: requireAuth, isRetry: true);
+      }
+    }
+    return _processResponse(response);
   }
 
   // DELETE Request with Auto-Token Refresh Retry

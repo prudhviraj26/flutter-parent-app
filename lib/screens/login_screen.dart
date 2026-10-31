@@ -117,10 +117,14 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() {
           _isLoading = false;
         });
+        String errorMsg = e.toString().replaceAll('Exception: ', '').trim();
+        if (errorMsg.toLowerCase().startsWith('network error:')) {
+          errorMsg = errorMsg.substring('network error:'.length).trim();
+        }
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString().replaceAll('Exception: ', '')),
+            content: Text(errorMsg),
             backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 7),

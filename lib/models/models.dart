@@ -10,6 +10,8 @@ class Child {
   final String apaarId;
   final String penNo;
   final String studentId;
+  final String? photoUrl;
+  final String? rollNumber;
 
   Child({
     required this.id,
@@ -21,6 +23,8 @@ class Child {
     required this.apaarId,
     required this.penNo,
     required this.studentId,
+    this.photoUrl,
+    this.rollNumber,
   });
 
   factory Child.empty() {
@@ -34,20 +38,24 @@ class Child {
       apaarId: '—',
       penNo: '—',
       studentId: '',
+      photoUrl: null,
+      rollNumber: null,
     );
   }
 
   factory Child.fromJson(Map<String, dynamic> json) {
     return Child(
-      id: json['id'] as String,
-      name: json['name'] as String,
-      grade: json['grade'] as String,
-      enrollmentNo: json['enrollmentNo'] as String,
-      dob: json['dob'] as String,
-      gender: json['gender'] as String,
-      apaarId: json['apaarId'] as String,
-      penNo: json['penNo'] as String,
-      studentId: json['studentId'] as String,
+      id: (json['id'] ?? '').toString(),
+      name: (json['name'] ?? 'Student').toString(),
+      grade: (json['grade'] ?? '—').toString(),
+      enrollmentNo: (json['enrollmentNo'] ?? '—').toString(),
+      dob: (json['dob'] ?? '—').toString(),
+      gender: (json['gender'] ?? '—').toString(),
+      apaarId: (json['apaarId'] ?? '—').toString(),
+      penNo: (json['penNo'] ?? '—').toString(),
+      studentId: (json['studentId'] ?? '').toString(),
+      photoUrl: json['photoUrl'] as String?,
+      rollNumber: json['rollNumber'] as String?,
     );
   }
 
@@ -62,7 +70,55 @@ class Child {
       'apaarId': apaarId,
       'penNo': penNo,
       'studentId': studentId,
+      'photoUrl': photoUrl,
+      'rollNumber': rollNumber,
     };
+  }
+}
+
+class SchoolWorkingHours {
+  final String startTime;
+  final String endTime;
+  final List<String> workingDays;
+
+  SchoolWorkingHours({
+    this.startTime = '08:00',
+    this.endTime = '15:30',
+    this.workingDays = const ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+  });
+
+  factory SchoolWorkingHours.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return SchoolWorkingHours();
+    return SchoolWorkingHours(
+      startTime: (json['startTime'] ?? '08:00').toString(),
+      endTime: (json['endTime'] ?? '15:30').toString(),
+      workingDays: (json['workingDays'] as List<dynamic>?)?.map((e) => e.toString().toLowerCase()).toList() ??
+          ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+    );
+  }
+
+  String get formattedSchedule {
+    String formatTime(String time24) {
+      try {
+        final parts = time24.split(':');
+        int hour = int.parse(parts[0]);
+        int min = int.parse(parts[1]);
+        final period = hour >= 12 ? 'PM' : 'AM';
+        final hour12 = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour);
+        return '$hour12:${min.toString().padLeft(2, '0')} $period';
+      } catch (_) {
+        return time24;
+      }
+    }
+
+    final startStr = formatTime(startTime);
+    final endStr = formatTime(endTime);
+
+    String daysStr = 'Mon – Fri';
+    if (workingDays.contains('saturday')) {
+      daysStr = 'Mon – Sat';
+    }
+    return '$startStr – $endStr ($daysStr)';
   }
 }
 
@@ -71,20 +127,44 @@ class Message {
   final String text;
   final String sender; // 'teacher' | 'parent'
   final String timestamp;
+  final String? readAt;
+  final bool isDeleted;
+  final String status; // 'sending' | 'sent' | 'delivered' | 'read'
 
   Message({
     required this.id,
     required this.text,
     required this.sender,
     required this.timestamp,
+    this.readAt,
+    this.isDeleted = false,
+    this.status = 'sent',
   });
 
+  bool get isRead => readAt != null || status == 'read';
+
   factory Message.fromJson(Map<String, dynamic> json) {
+    final senderType = (json['sender'] ?? json['senderType'] ?? 'parent').toString();
+    final bodyText = (json['text'] ?? json['body'] ?? '').toString();
+    final readAtStr = json['readAt']?.toString();
+    final isDel = json['isDeleted'] as bool? ?? false;
+
+    // Derive WhatsApp status
+    String status = 'sent';
+    if (readAtStr != null && readAtStr.isNotEmpty) {
+      status = 'read';
+    } else {
+      status = 'delivered';
+    }
+
     return Message(
-      id: json['id'] as String,
-      text: json['text'] as String,
-      sender: json['sender'] as String,
-      timestamp: json['timestamp'] as String,
+      id: (json['id'] ?? '').toString(),
+      text: bodyText,
+      sender: senderType,
+      timestamp: (json['timestamp'] ?? json['createdAt'] ?? '').toString(),
+      readAt: readAtStr,
+      isDeleted: isDel,
+      status: status,
     );
   }
 
@@ -94,6 +174,9 @@ class Message {
       'text': text,
       'sender': sender,
       'timestamp': timestamp,
+      'readAt': readAt,
+      'isDeleted': isDeleted,
+      'status': status,
     };
   }
 }
@@ -106,6 +189,9 @@ class Teacher {
   final String teacherClass; // mapped from class
   final bool isClassTeacher;
   String? lastMessage;
+  DateTime? lastMessageAt;
+  int unreadCount;
+  bool unread;
   final List<Message> messages;
 
   Teacher({
@@ -116,6 +202,9 @@ class Teacher {
     required this.teacherClass,
     this.isClassTeacher = false,
     this.lastMessage,
+    this.lastMessageAt,
+    this.unreadCount = 0,
+    this.unread = false,
     this.messages = const [],
   });
 
@@ -144,6 +233,19 @@ class Teacher {
       subs = [json['subject'].toString()];
     }
 
+    DateTime? lAt;
+    if (json['lastMessageAt'] != null) {
+      try {
+        lAt = DateTime.parse(json['lastMessageAt'].toString());
+      } catch (_) {}
+    } else if (msgs.isNotEmpty) {
+      try {
+        lAt = DateTime.parse(msgs.last.timestamp);
+      } catch (_) {}
+    }
+
+    final uCount = json['parentUnreadCount'] as int? ?? json['unreadCount'] as int? ?? 0;
+
     return Teacher(
       id: (json['id'] ?? '').toString(),
       name: (json['name'] ?? '').toString(),
@@ -152,6 +254,9 @@ class Teacher {
       teacherClass: (json['class'] ?? json['teacherClass'] ?? '').toString(),
       isClassTeacher: json['isClassTeacher'] as bool? ?? false,
       lastMessage: json['lastMessage'] as String?,
+      lastMessageAt: lAt,
+      unreadCount: uCount,
+      unread: uCount > 0,
       messages: msgs,
     );
   }
@@ -165,6 +270,9 @@ class Teacher {
       'class': teacherClass,
       'isClassTeacher': isClassTeacher,
       'lastMessage': lastMessage,
+      'lastMessageAt': lastMessageAt?.toIso8601String(),
+      'unreadCount': unreadCount,
+      'unread': unread,
       'messages': messages.map((e) => e.toJson()).toList(),
     };
   }
@@ -196,12 +304,14 @@ class NoticeAttachment {
   final String url;
   final int sizeBytes;
   final String contentType;
+  final String? blobPath;
 
   NoticeAttachment({
     required this.name,
     required this.url,
     this.sizeBytes = 0,
     this.contentType = '',
+    this.blobPath,
   });
 
   factory NoticeAttachment.fromJson(Map<String, dynamic> json) {
@@ -212,6 +322,7 @@ class NoticeAttachment {
           ? json['sizeBytes'] as int
           : int.tryParse(json['sizeBytes']?.toString() ?? '0') ?? 0,
       contentType: (json['contentType'] ?? '').toString(),
+      blobPath: json['blobPath']?.toString(),
     );
   }
 
@@ -221,6 +332,7 @@ class NoticeAttachment {
       'url': url,
       'sizeBytes': sizeBytes,
       'contentType': contentType,
+      if (blobPath != null) 'blobPath': blobPath,
     };
   }
 
@@ -229,6 +341,21 @@ class NoticeAttachment {
     if (sizeBytes < 1024) return '$sizeBytes B';
     if (sizeBytes < 1024 * 1024) return '${(sizeBytes / 1024).toStringAsFixed(1)} KB';
     return '${(sizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  bool get isMedia {
+    final n = name.toLowerCase();
+    final c = contentType.toLowerCase();
+    return c.startsWith('image/') ||
+        c.startsWith('video/') ||
+        n.endsWith('.jpg') ||
+        n.endsWith('.jpeg') ||
+        n.endsWith('.png') ||
+        n.endsWith('.webp') ||
+        n.endsWith('.gif') ||
+        n.endsWith('.mp4') ||
+        n.endsWith('.mov') ||
+        n.endsWith('.webm');
   }
 }
 
@@ -241,10 +368,12 @@ class Notice {
   final String body;
   final NoticeCta? cta;
   final String category;
+  final String broadcastType;
   final String? publishedAt;
   final List<NoticeAttachment> attachments;
   final String? externalUrl;
   final String? externalUrlLabel;
+  final String? eventId;
   final bool isRead;
 
   Notice({
@@ -256,10 +385,12 @@ class Notice {
     required this.body,
     this.cta,
     this.category = 'School Notice',
+    this.broadcastType = 'school_notice',
     this.publishedAt,
     this.attachments = const [],
     this.externalUrl,
     this.externalUrlLabel,
+    this.eventId,
     this.isRead = false,
   });
 
@@ -297,6 +428,24 @@ class Notice {
       }
     }
 
+    String cat = (json['category'] ?? 'School Notice').toString();
+    if (cat.toLowerCase().contains('grade') ||
+        cat.toLowerCase().contains('section') ||
+        cat.toLowerCase().contains('class') ||
+        cat.toLowerCase().contains('student')) {
+      cat = 'Class Notice';
+    } else {
+      cat = 'School Notice';
+    }
+
+    final rawType = json['broadcastType']?.toString();
+    String broadcastType = rawType ?? '';
+    if (broadcastType.isEmpty) {
+      broadcastType = cat.contains('Class') ? 'class_notice' : 'school_notice';
+    } else if (cat == 'Class Notice') {
+      broadcastType = 'class_notice';
+    }
+
     return Notice(
       id: (json['id'] ?? '').toString(),
       source: (json['source'] ?? json['senderName'] ?? json['author'] ?? 'School Administration').toString(),
@@ -305,13 +454,44 @@ class Notice {
       time: formattedTime,
       body: (json['body'] ?? json['message'] ?? '').toString(),
       cta: json['cta'] != null ? NoticeCta.fromJson(json['cta'] as Map<String, dynamic>) : null,
-      category: (json['category'] ?? 'School Notice').toString(),
+      category: cat,
+      broadcastType: broadcastType,
       publishedAt: pubAt,
       attachments: parsedAttachments,
       externalUrl: json['externalUrl']?.toString(),
       externalUrlLabel: json['externalUrlLabel']?.toString(),
+      eventId: json['eventId']?.toString(),
       isRead: json['isRead'] == true,
     );
+  }
+
+  bool get isClassNotice => broadcastType == 'class_notice' || category.toLowerCase().contains('class');
+  bool get isSchoolNotice => !isClassNotice;
+  bool get isHomework => broadcastType == 'homework';
+  bool get isClasswork => broadcastType == 'classwork';
+
+  bool get isGalleryNotice =>
+      (eventId != null && eventId!.isNotEmpty) ||
+      (externalUrl != null &&
+          (externalUrl!.startsWith('veyho://gallery') ||
+              externalUrl!.contains('/gallery') ||
+              (externalUrlLabel?.toLowerCase().contains('gallery') ?? false)));
+
+  List<NoticeAttachment> get nonMediaAttachments => attachments.where((a) => !a.isMedia).toList();
+  List<NoticeAttachment> get displayAttachments => isGalleryNotice ? nonMediaAttachments : attachments;
+
+  DateTime get dateTime {
+    if (publishedAt != null && publishedAt!.isNotEmpty) {
+      try {
+        return DateTime.parse(publishedAt!).toLocal();
+      } catch (_) {}
+    }
+    if (date.isNotEmpty && date != 'Recent') {
+      try {
+        return DateTime.parse(date);
+      } catch (_) {}
+    }
+    return DateTime.fromMillisecondsSinceEpoch(0);
   }
 
   Map<String, dynamic> toJson() {
@@ -324,15 +504,17 @@ class Notice {
       'body': body,
       'cta': cta?.toJson(),
       'category': category,
+      'broadcastType': broadcastType,
       'publishedAt': publishedAt,
       'attachments': attachments.map((a) => a.toJson()).toList(),
       'externalUrl': externalUrl,
       'externalUrlLabel': externalUrlLabel,
+      'eventId': eventId,
       'isRead': isRead,
     };
   }
 
-  Notice copyWith({bool? isRead}) {
+  Notice copyWith({bool? isRead, String? broadcastType, String? eventId}) {
     return Notice(
       id: id,
       source: source,
@@ -342,10 +524,12 @@ class Notice {
       body: body,
       cta: cta,
       category: category,
+      broadcastType: broadcastType ?? this.broadcastType,
       publishedAt: publishedAt,
       attachments: attachments,
       externalUrl: externalUrl,
       externalUrlLabel: externalUrlLabel,
+      eventId: eventId ?? this.eventId,
       isRead: isRead ?? this.isRead,
     );
   }
@@ -354,34 +538,81 @@ class Notice {
 class ClassUpdate {
   final String id;
   final String type; // 'Classwork' | 'Homework'
+  final String broadcastType; // 'homework' | 'classwork'
   final String subject;
+  final String title;
   final String classTarget; // mapped from class
   final String teacher;
   final String body;
-  final List<String>? attachments;
+  final List<String> attachments;
   final String date;
+  final String time;
+  final String? publishedAt;
+  final bool isRead;
 
   ClassUpdate({
     required this.id,
     required this.type,
+    this.broadcastType = 'homework',
     required this.subject,
+    this.title = '',
     required this.classTarget,
     required this.teacher,
     required this.body,
-    this.attachments,
+    this.attachments = const [],
     required this.date,
+    this.time = '',
+    this.publishedAt,
+    this.isRead = false,
   });
 
+  bool get isHomework => type.toLowerCase() == 'homework' || broadcastType == 'homework';
+  bool get isClasswork => !isHomework;
+
+  DateTime get dateTime {
+    if (publishedAt != null && publishedAt!.isNotEmpty) {
+      try {
+        return DateTime.parse(publishedAt!).toLocal();
+      } catch (_) {}
+    }
+    if (date.isNotEmpty) {
+      try {
+        return DateTime.parse(date);
+      } catch (_) {}
+    }
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
   factory ClassUpdate.fromJson(Map<String, dynamic> json) {
+    final rawType = (json['type'] ?? (json['broadcastType'] == 'classwork' ? 'Classwork' : 'Homework')).toString();
+    final bType = (json['broadcastType'] ?? (rawType.toLowerCase() == 'classwork' ? 'classwork' : 'homework')).toString();
+
+    List<String> parsedAttachments = [];
+    if (json['attachments'] is List) {
+      for (final a in json['attachments'] as List) {
+        if (a is String && a.isNotEmpty) {
+          parsedAttachments.add(a);
+        } else if (a is Map<String, dynamic>) {
+          final url = (a['readUrl'] ?? a['url'] ?? '').toString();
+          if (url.isNotEmpty) parsedAttachments.add(url);
+        }
+      }
+    }
+
     return ClassUpdate(
-      id: json['id'] as String,
-      type: json['type'] as String,
-      subject: json['subject'] as String,
-      classTarget: json['class'] as String,
-      teacher: json['teacher'] as String,
-      body: json['body'] as String,
-      attachments: (json['attachments'] as List<dynamic>?)?.map((e) => e as String).toList(),
-      date: json['date'] as String,
+      id: (json['id'] ?? '').toString(),
+      type: rawType,
+      broadcastType: bType,
+      subject: (json['subject'] ?? 'General').toString(),
+      title: (json['title'] ?? '').toString(),
+      classTarget: (json['class'] ?? json['classTarget'] ?? '').toString(),
+      teacher: (json['teacher'] ?? json['senderName'] ?? 'Class Teacher').toString(),
+      body: (json['body'] ?? json['description'] ?? '').toString(),
+      attachments: parsedAttachments,
+      date: (json['date'] ?? '').toString(),
+      time: (json['time'] ?? '').toString(),
+      publishedAt: json['publishedAt']?.toString() ?? json['createdAt']?.toString(),
+      isRead: json['isRead'] == true,
     );
   }
 
@@ -389,12 +620,17 @@ class ClassUpdate {
     return {
       'id': id,
       'type': type,
+      'broadcastType': broadcastType,
       'subject': subject,
+      'title': title,
       'class': classTarget,
       'teacher': teacher,
       'body': body,
       'attachments': attachments,
       'date': date,
+      'time': time,
+      'publishedAt': publishedAt,
+      'isRead': isRead,
     };
   }
 }
@@ -574,14 +810,33 @@ class Fee {
 
 class Photo {
   final String id;
-  final String url;
+  final String url; // Full-resolution SAS URL
+  final String thumbnailUrl; // Lightweight web thumbnail SAS URL
+  final String name;
+  final String type; // 'image' | 'video'
+  final String caption;
 
-  Photo({required this.id, required this.url});
+  Photo({
+    required this.id,
+    required this.url,
+    String? thumbnailUrl,
+    this.name = '',
+    this.type = 'image',
+    this.caption = '',
+  }) : thumbnailUrl = (thumbnailUrl != null && thumbnailUrl.isNotEmpty) ? thumbnailUrl : url;
+
+  bool get isVideo => type.toLowerCase() == 'video';
 
   factory Photo.fromJson(Map<String, dynamic> json) {
+    final fullUrl = json['url'] as String? ?? '';
+    final thumb = json['thumbnailUrl'] as String? ?? fullUrl;
     return Photo(
       id: json['id'] as String? ?? '',
-      url: json['url'] as String? ?? '',
+      url: fullUrl,
+      thumbnailUrl: thumb,
+      name: json['name'] as String? ?? '',
+      type: json['type'] as String? ?? 'image',
+      caption: json['caption'] as String? ?? '',
     );
   }
 
@@ -589,37 +844,55 @@ class Photo {
     return {
       'id': id,
       'url': url,
+      'thumbnailUrl': thumbnailUrl,
+      'name': name,
+      'type': type,
+      'caption': caption,
     };
   }
 }
 
 class Album {
   final String id;
+  final String eventId;
   final String title;
+  final String category;
+  final String eventDate;
+  final String location;
   final String coverPhoto;
   final int? _photoCount;
   final List<Photo> photos;
 
   Album({
     required this.id,
+    String? eventId,
     required this.title,
+    this.category = 'general',
+    this.eventDate = '',
+    this.location = '',
     required this.coverPhoto,
     int? photoCount,
     required this.photos,
-  }) : _photoCount = photoCount ?? photos.length;
+  })  : eventId = eventId ?? id,
+        _photoCount = photoCount ?? photos.length;
 
   int get photoCount => _photoCount ?? photos.length;
 
   factory Album.fromJson(Map<String, dynamic> json) {
-    var photosJson = json['photos'] as List<dynamic>?;
+    final mediaRaw = json['media'] ?? json['photos'];
+    var photosJson = mediaRaw as List<dynamic>?;
     List<Photo> pts = photosJson != null
         ? photosJson.map((e) => Photo.fromJson(e as Map<String, dynamic>)).toList()
         : [];
     return Album(
-      id: json['id'] as String? ?? '',
+      id: json['id'] as String? ?? json['eventId'] as String? ?? '',
+      eventId: json['eventId'] as String? ?? json['id'] as String? ?? '',
       title: json['title'] as String? ?? '',
-      coverPhoto: json['coverPhoto'] as String? ?? '',
-      photoCount: (json['photoCount'] as num?)?.toInt() ?? pts.length,
+      category: json['category'] as String? ?? 'general',
+      eventDate: json['eventDate'] as String? ?? '',
+      location: json['location'] as String? ?? '',
+      coverPhoto: json['coverPhoto'] as String? ?? (pts.isNotEmpty ? pts.first.thumbnailUrl : ''),
+      photoCount: (json['mediaCount'] as num?)?.toInt() ?? (json['photoCount'] as num?)?.toInt() ?? pts.length,
       photos: pts,
     );
   }
@@ -627,7 +900,11 @@ class Album {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'eventId': eventId,
       'title': title,
+      'category': category,
+      'eventDate': eventDate,
+      'location': location,
       'coverPhoto': coverPhoto,
       'photoCount': photoCount,
       'photos': photos.map((e) => e.toJson()).toList(),

@@ -6,6 +6,10 @@ import 'package:easy_localization/easy_localization.dart';
 import '../state/app_state.dart';
 import '../constants/colors.dart';
 import '../widgets/veyho_logo.dart';
+import '../widgets/clickwrap_dialog.dart';
+import '../widgets/push_permission_primer_dialog.dart';
+import '../services/device_info_service.dart';
+import '../services/notification_navigation_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -61,10 +65,42 @@ class _LoginScreenState extends State<LoginScreen> {
           _isLoading = false;
         });
         if (success) {
-          if (appState.mustChangePassword) {
-            Navigator.pushReplacementNamed(context, '/set-new-password');
-          } else {
-            Navigator.pushReplacementNamed(context, '/home');
+          // Check if legal assent is needed (first time on device or major version bump)
+          final needsConsent = await appState.checkNeedsLegalAssent();
+          if (needsConsent && mounted) {
+            final telemetry = await DeviceInfoService.getDeviceTelemetry();
+            if (!mounted) return;
+            final agreed = await ClickwrapDialog.show(
+              context,
+              activeDocs: appState.activeLegalDocs,
+              deviceUuid: telemetry.deviceUuid,
+            );
+            if (!agreed) {
+              return;
+            }
+            final termsDoc = appState.activeLegalDocs?['terms'] as Map<String, dynamic>?;
+            final privacyDoc = appState.activeLegalDocs?['privacy'] as Map<String, dynamic>?;
+            await appState.onLegalConsentAccepted(
+              termsVersion: termsDoc?['version']?.toString() ?? 'v1.0.0',
+              privacyVersion: privacyDoc?['version']?.toString() ?? 'v1.0.0',
+            );
+          }
+
+          // Pre-Permission Primer Modal for Push Notifications
+          if (mounted) {
+            final wantNotifications =
+                await PushPermissionPrimerDialog.show(context);
+            if (wantNotifications == true) {
+              await NotificationNavigationService.requestPermissionAndRegister();
+            }
+          }
+
+          if (mounted) {
+            if (appState.mustChangePassword) {
+              Navigator.pushReplacementNamed(context, '/set-new-password');
+            } else {
+              Navigator.pushReplacementNamed(context, '/home');
+            }
           }
         } else {
           ScaffoldMessenger.of(context).showSnackBar(

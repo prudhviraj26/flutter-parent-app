@@ -1,4 +1,5 @@
 import 'api_service.dart';
+import '../models/models.dart';
 
 class ParentApiService {
   /// Fetch parent profile and list of linked children
@@ -49,6 +50,19 @@ class ParentApiService {
     throw Exception('Failed to load notices');
   }
 
+  /// Fetch class updates (homework & classwork) for student
+  static Future<List<dynamic>> getChildClassUpdates(String studentId) async {
+    try {
+      final response = await ApiService.get('/parent/children/$studentId/class-updates');
+      if (response is List) {
+        return response;
+      }
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
   /// Mark notice / broadcast as read
   static Future<bool> markNoticeRead(String noticeId) async {
     try {
@@ -87,6 +101,16 @@ class ParentApiService {
     throw Exception('Failed to load chat thread');
   }
 
+  /// Delta polling for new messages in active chat
+  static Future<Map<String, dynamic>> getChatDeltaMessages(String studentId, {String? since}) async {
+    final query = since != null ? '?since=${Uri.encodeComponent(since)}' : '';
+    final response = await ApiService.get('/parent/children/$studentId/chat/messages$query');
+    if (response is Map<String, dynamic>) {
+      return response;
+    }
+    return {'messages': []};
+  }
+
   /// Send message to class teacher
   static Future<Map<String, dynamic>> sendMessage(String studentId, String body) async {
     final response = await ApiService.post('/parent/children/$studentId/chat/messages', {
@@ -96,6 +120,26 @@ class ParentApiService {
       return response;
     }
     throw Exception('Failed to send message');
+  }
+
+  /// Mark chat thread as read by parent
+  static Future<bool> markChatThreadRead(String studentId) async {
+    try {
+      await ApiService.post('/parent/children/$studentId/chat/read', {});
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Soft delete message
+  static Future<bool> deleteChatMessage(String studentId, String messageId) async {
+    try {
+      await ApiService.delete('/parent/children/$studentId/chat/messages/$messageId');
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Fetch academic years for school
@@ -140,6 +184,15 @@ class ParentApiService {
       return response;
     }
     throw Exception('Failed to load health records');
+  }
+
+  /// Fetch media gallery albums for student
+  static Future<List<Album>> getChildGallery(String studentId) async {
+    final response = await ApiService.get('/parent/children/$studentId/gallery');
+    if (response is List) {
+      return response.map((json) => Album.fromJson(json as Map<String, dynamic>)).toList();
+    }
+    return [];
   }
 }
 

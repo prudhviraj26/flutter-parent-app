@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
@@ -13,7 +14,7 @@ class ApiService {
   static const String _tokenKey = 'veyho_parent_access_token';
   static const String _refreshTokenKey = 'veyho_parent_refresh_token';
 
-  static bool _isRefreshing = false;
+  static Completer<bool>? _refreshCompleter;
 
   // Save Tokens securely
   static Future<void> saveTokens({required String accessToken, String? refreshToken}) async {
@@ -41,13 +42,19 @@ class ApiService {
 
   // Silent Token Renewal
   static Future<bool> refreshTokenSilently() async {
-    if (_isRefreshing) return false;
-    _isRefreshing = true;
+    // If a refresh is already in progress, await its completion
+    if (_refreshCompleter != null) {
+      return _refreshCompleter!.future;
+    }
+
+    final completer = Completer<bool>();
+    _refreshCompleter = completer;
+
 
     try {
       final refreshToken = await getRefreshToken();
       if (refreshToken == null || refreshToken.isEmpty) {
-        _isRefreshing = false;
+        if (!completer.isCompleted) completer.complete(false);
         return false;
       }
 
@@ -69,18 +76,21 @@ class ApiService {
           final newRefresh = body['refreshToken'] as String? ?? refreshToken;
           await saveTokens(accessToken: newAccess, refreshToken: newRefresh);
           debugPrint('Parent App silent token refresh succeeded');
-          _isRefreshing = false;
+          if (!completer.isCompleted) completer.complete(true);
           return true;
         }
       } else if (res.statusCode == 401 || res.statusCode == 403) {
         // Refresh token is expired or revoked on server
         debugPrint('Parent App refresh token expired/revoked on server');
-        await clearTokens();
+        debugPrint('Parent App refresh rejected: ${res.statusCode}');
       }
     } catch (e) {
       debugPrint('Parent App silent token refresh failed: $e');
     } finally {
-      _isRefreshing = false;
+      if (!completer.isCompleted) {
+        completer.complete(false);
+      }
+      _refreshCompleter = null;
     }
     return false;
   }

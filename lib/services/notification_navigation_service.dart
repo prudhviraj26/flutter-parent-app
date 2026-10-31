@@ -232,6 +232,19 @@ class NotificationNavigationService {
   }
 
   /// Deep-Link Routing with Child-Context Auto-Switching
+  static Future<void> unregisterDeviceToken() async {
+    try {
+      final token = await FirebaseMessaging.instance.getToken();
+      if (token != null && token.isNotEmpty) {
+        await ApiService.removeDeviceToken(token);
+        debugPrint('[FCM] Device token removed on logout');
+      }
+    } catch (e) {
+      debugPrint('[FCM] unregisterDeviceToken note: $e');
+    }
+  }
+
+  /// Deep-Link Routing with Child-Context Auto-Switching
   static Future<void> handleNotificationPayload(
       Map<String, dynamic> data) async {
     debugPrint('[NotificationNavigation] Handling payload: $data');

@@ -8,6 +8,7 @@ import '../services/api_service.dart';
 import '../services/parent_api_service.dart';
 import '../services/gallery_local_store.dart';
 import '../services/attachment_local_store.dart';
+import '../services/notification_navigation_service.dart';
 
 class AppState extends ChangeNotifier {
   SharedPreferences? _prefs;
@@ -841,6 +842,9 @@ class AppState extends ChangeNotifier {
     _childAvatars.clear();
     _children = [];
     _currentChild = null;
+
+    // Deactivate push device token on server before clearing local session
+    await NotificationNavigationService.unregisterDeviceToken();
 
     // Clear session credentials and active user data
     await ApiService.clearTokens();

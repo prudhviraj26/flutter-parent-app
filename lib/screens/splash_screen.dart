@@ -77,6 +77,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
           if (mounted) {
             Navigator.pushReplacementNamed(context, '/home');
             NotificationNavigationService.checkInitialNotification();
+            NotificationNavigationService.requestPermissionAndRegister();
           }
         } else {
           Navigator.pushReplacementNamed(context, '/login');

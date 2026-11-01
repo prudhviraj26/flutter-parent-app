@@ -23,25 +23,35 @@ class NoticeScreen extends StatefulWidget {
   State<NoticeScreen> createState() => _NoticeScreenState();
 }
 
-class _NoticeScreenState extends State<NoticeScreen> {
+class _NoticeScreenState extends State<NoticeScreen> with WidgetsBindingObserver {
   String _searchTerm = '';
   NoticeFilterType _selectedFilter = NoticeFilterType.all;
   bool _isSearchOpen = false;
   final TextEditingController _searchController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final appState = Provider.of<AppState>(context, listen: false);
+      appState.fetchNotices(appState.currentChild.id);
+    });
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     super.dispose();
   }
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
       final appState = Provider.of<AppState>(context, listen: false);
       appState.fetchNotices(appState.currentChild.id);
-    });
+    }
   }
 
   Future<void> _loadNotices() async {
@@ -77,25 +87,11 @@ class _NoticeScreenState extends State<NoticeScreen> {
 
   String _formatNoticeSubtitle(Notice notice) {
     final catName = notice.isSchoolNotice ? 'schoolNotice'.tr() : 'classNotice'.tr();
-    String timeOrDate = '';
     final dt = notice.dateTime;
-    if (dt.millisecondsSinceEpoch > 0) {
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final noticeDay = DateTime(dt.year, dt.month, dt.day);
-      final diffDays = today.difference(noticeDay).inDays;
-
-      if (diffDays == 0) {
-        timeOrDate = notice.time.isNotEmpty ? notice.time : DateFormat('hh:mm a').format(dt);
-      } else if (diffDays == 1) {
-        timeOrDate = 'Yesterday';
-      } else {
-        timeOrDate = DateFormat('d MMM').format(dt);
-      }
-    } else {
-      timeOrDate = notice.time.isNotEmpty ? notice.time : notice.date;
-    }
-    return '$catName • $timeOrDate';
+    final dateStr = dt.millisecondsSinceEpoch > 0
+        ? DateFormat('yyyy-MM-dd').format(dt)
+        : notice.date;
+    return '$catName • $dateStr';
   }
 
   Widget _buildFilterChips(List<Notice> allNotices, AppState appState) {
@@ -213,7 +209,7 @@ class _NoticeScreenState extends State<NoticeScreen> {
       padding: const EdgeInsets.only(bottom: 12),
       child: Container(
         decoration: BoxDecoration(
-          color: isUnread ? Colors.white : const Color(0xFFF8FAFC),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isUnread
@@ -750,13 +746,11 @@ class NoticeDetailScreen extends StatelessWidget {
 
   const NoticeDetailScreen({super.key, required this.notice});
 
-  String _formatFullDate(String dateStr) {
-    try {
-      final date = DateTime.parse(dateStr);
-      return DateFormat('EEEE, d MMMM yyyy').format(date);
-    } catch (_) {
-      return dateStr;
+  String _formatDate(Notice notice) {
+    if (notice.dateTime.millisecondsSinceEpoch > 0) {
+      return DateFormat('yyyy-MM-dd').format(notice.dateTime);
     }
+    return notice.date;
   }
 
   Future<void> _openAttachment(BuildContext context, NoticeAttachment att) async {
@@ -978,18 +972,9 @@ class NoticeDetailScreen extends StatelessWidget {
                       const Icon(LucideIcons.calendar, color: Colors.white70, size: 14),
                       const SizedBox(width: 6),
                       Text(
-                        _formatFullDate(notice.date),
+                        _formatDate(notice),
                         style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500),
                       ),
-                      if (notice.time.isNotEmpty) ...[
-                        const SizedBox(width: 14),
-                        const Icon(LucideIcons.clock, color: Colors.white70, size: 14),
-                        const SizedBox(width: 6),
-                        Text(
-                          notice.time,
-                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w500),
-                        ),
-                      ],
                     ],
                   ),
                 ],

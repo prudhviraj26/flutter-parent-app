@@ -721,6 +721,12 @@ class AppState extends ChangeNotifier {
         };
         await _prefs?.setString('veyho_parent_user', json.encode(userData));
 
+        // Reset and load user-scoped read tracking
+        _readNoticeIds.clear();
+        _readClassUpdateIds.clear();
+        await _loadReadNoticeIds();
+        await _loadReadClassUpdateIds();
+
         if (res['user'] != null) {
           if (res['user']['schoolName'] != null && res['user']['schoolName'].toString().isNotEmpty) {
             _schoolName = res['user']['schoolName'].toString();
@@ -842,6 +848,8 @@ class AppState extends ChangeNotifier {
     _childAvatars.clear();
     _children = [];
     _currentChild = null;
+    _readNoticeIds.clear();
+    _readClassUpdateIds.clear();
 
     // Deactivate push device token on server before clearing local session
     await NotificationNavigationService.unregisterDeviceToken();
@@ -1040,13 +1048,18 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _loadReadNoticeIds() async {
-    final key = 'veyho_parent_read_notices_${_mobile ?? 'user'}';
+    if (_mobile == null || _mobile!.isEmpty) {
+      _readNoticeIds = {};
+      return;
+    }
+    final key = 'veyho_parent_read_notices_$_mobile';
     final list = _prefs?.getStringList(key) ?? [];
     _readNoticeIds = list.toSet();
   }
 
   Future<void> _saveReadNoticeIds() async {
-    final key = 'veyho_parent_read_notices_${_mobile ?? 'user'}';
+    if (_mobile == null || _mobile!.isEmpty) return;
+    final key = 'veyho_parent_read_notices_$_mobile';
     await _prefs?.setStringList(key, _readNoticeIds.toList());
   }
 
@@ -1070,13 +1083,18 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _loadReadClassUpdateIds() async {
-    final key = 'veyho_parent_read_class_updates_${_mobile ?? 'user'}';
+    if (_mobile == null || _mobile!.isEmpty) {
+      _readClassUpdateIds = {};
+      return;
+    }
+    final key = 'veyho_parent_read_class_updates_$_mobile';
     final list = _prefs?.getStringList(key) ?? [];
     _readClassUpdateIds = list.toSet();
   }
 
   Future<void> _saveReadClassUpdateIds() async {
-    final key = 'veyho_parent_read_class_updates_${_mobile ?? 'user'}';
+    if (_mobile == null || _mobile!.isEmpty) return;
+    final key = 'veyho_parent_read_class_updates_$_mobile';
     await _prefs?.setStringList(key, _readClassUpdateIds.toList());
   }
 

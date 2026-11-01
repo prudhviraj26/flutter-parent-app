@@ -82,10 +82,11 @@ class NotificationNavigationService {
         },
       );
 
-      // 4. Foreground Message Listener -> Display Heads-Up Banner
+      // 4. Foreground Message Listener -> Display Heads-Up Banner & Auto-Sync In-App State
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
         debugPrint('[FCM Foreground] Received: ${message.notification?.title}');
         _showForegroundNotification(message);
+        _syncAppStateOnNotification(message.data);
       });
 
       // 5. Background Message Open Listener (App running in background)
@@ -177,11 +178,21 @@ class NotificationNavigationService {
     );
   }
 
-  /// Request push permission and register token with backend
+  /// Request push permission and register token with backend.
+  /// If already authorized, skips prompt and quietly refreshes token.
   static Future<bool> requestPermissionAndRegister() async {
     try {
       final messaging = FirebaseMessaging.instance;
 
+      // 1. Check current permission status first
+      final currentSettings = await messaging.getNotificationSettings();
+      if (currentSettings.authorizationStatus == AuthorizationStatus.authorized ||
+          currentSettings.authorizationStatus == AuthorizationStatus.provisional) {
+        // Already authorized on this device -> register token silently with zero popups
+        return await _fetchAndRegisterToken(messaging);
+      }
+
+      // 2. If not yet determined, prompt using Android OS native dialog (Screenshot 2)
       final settings = await messaging.requestPermission(
         alert: true,
         announcement: false,
@@ -197,11 +208,20 @@ class NotificationNavigationService {
               settings.authorizationStatus == AuthorizationStatus.provisional;
 
       if (!isAuthorized) {
-        debugPrint('[FCM] Push permissions denied by user');
+        debugPrint('[FCM] Push permissions denied or dismissed by user');
         return false;
       }
 
-      // Fetch FCM Device Token
+      return await _fetchAndRegisterToken(messaging);
+    } catch (e) {
+      debugPrint('[FCM] requestPermissionAndRegister error: $e');
+    }
+    return false;
+  }
+
+  /// Fetches FCM device token and registers with the backend
+  static Future<bool> _fetchAndRegisterToken(FirebaseMessaging messaging) async {
+    try {
       String? token;
       try {
         token = await messaging.getToken();
@@ -226,7 +246,7 @@ class NotificationNavigationService {
         return true;
       }
     } catch (e) {
-      debugPrint('[FCM] requestPermissionAndRegister error: $e');
+      debugPrint('[FCM] _fetchAndRegisterToken error: $e');
     }
     return false;
   }
@@ -244,10 +264,34 @@ class NotificationNavigationService {
     }
   }
 
+  /// Real-time state synchronization when a notification arrives or is opened
+  static void _syncAppStateOnNotification(Map<String, dynamic> data) {
+    try {
+      final context = navigatorKey.currentContext;
+      if (context != null) {
+        final appState = Provider.of<AppState>(context, listen: false);
+        final studentId = data['studentId']?.toString();
+        final targetChildId = (studentId != null && studentId.isNotEmpty)
+            ? studentId
+            : appState.currentChild.id;
+
+        if (appState.loggedIn && targetChildId.isNotEmpty) {
+          debugPrint('[FCM Sync] Auto-refreshing live data for student: $targetChildId');
+          appState.fetchLiveChildData(targetChildId);
+        }
+      }
+    } catch (e) {
+      debugPrint('[FCM Sync] Note during auto-refresh: $e');
+    }
+  }
+
   /// Deep-Link Routing with Child-Context Auto-Switching
   static Future<void> handleNotificationPayload(
       Map<String, dynamic> data) async {
     debugPrint('[NotificationNavigation] Handling payload: $data');
+
+    // Always sync state so data is fresh when navigating
+    _syncAppStateOnNotification(data);
 
     final type = data['type']?.toString().toLowerCase();
     final studentId = data['studentId']?.toString();

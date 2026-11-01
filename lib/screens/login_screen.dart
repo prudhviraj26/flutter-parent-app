@@ -7,7 +7,6 @@ import '../state/app_state.dart';
 import '../constants/colors.dart';
 import '../widgets/veyho_logo.dart';
 import '../widgets/clickwrap_dialog.dart';
-import '../widgets/push_permission_primer_dialog.dart';
 import '../services/device_info_service.dart';
 import '../services/notification_navigation_service.dart';
 
@@ -86,14 +85,8 @@ class _LoginScreenState extends State<LoginScreen> {
             );
           }
 
-          // Pre-Permission Primer Modal for Push Notifications
-          if (mounted) {
-            final wantNotifications =
-                await PushPermissionPrimerDialog.show(context);
-            if (wantNotifications == true) {
-              await NotificationNavigationService.requestPermissionAndRegister();
-            }
-          }
+          // Request / register push notifications (1 single native OS dialog on first login, silent on repeat logins)
+          await NotificationNavigationService.requestPermissionAndRegister();
 
           if (mounted) {
             if (appState.mustChangePassword) {

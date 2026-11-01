@@ -15,8 +15,37 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   bool _showChildDropdown = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final appState = Provider.of<AppState>(context, listen: false);
+      if (appState.loggedIn && appState.currentChild.id.isNotEmpty) {
+        appState.fetchLiveChildData(appState.currentChild.id);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final appState = Provider.of<AppState>(context, listen: false);
+      if (appState.loggedIn && appState.currentChild.id.isNotEmpty) {
+        debugPrint('[AppLifecycle] Resumed from background -> auto-syncing live child data');
+        appState.fetchLiveChildData(appState.currentChild.id);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

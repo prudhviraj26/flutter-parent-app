@@ -402,12 +402,8 @@ class Notice {
     if (pubAt != null && pubAt.isNotEmpty) {
       try {
         final dt = DateTime.parse(pubAt).toLocal();
-        if (formattedDate.isEmpty) {
-          formattedDate = DateFormat('d MMM yyyy').format(dt);
-        }
-        if (formattedTime.isEmpty) {
-          formattedTime = DateFormat('hh:mm a').format(dt);
-        }
+        formattedDate = DateFormat('yyyy-MM-dd').format(dt);
+        formattedTime = DateFormat('hh:mm a').format(dt);
       } catch (_) {}
     }
 
@@ -599,6 +595,18 @@ class ClassUpdate {
       }
     }
 
+    String formattedDate = (json['date'] ?? '').toString();
+    String formattedTime = (json['time'] ?? '').toString();
+    final pubAt = json['publishedAt']?.toString() ?? json['createdAt']?.toString();
+
+    if (pubAt != null && pubAt.isNotEmpty) {
+      try {
+        final dt = DateTime.parse(pubAt).toLocal();
+        formattedDate = DateFormat('yyyy-MM-dd').format(dt);
+        formattedTime = DateFormat('hh:mm a').format(dt);
+      } catch (_) {}
+    }
+
     return ClassUpdate(
       id: (json['id'] ?? '').toString(),
       type: rawType,
@@ -609,9 +617,9 @@ class ClassUpdate {
       teacher: (json['teacher'] ?? json['senderName'] ?? 'Class Teacher').toString(),
       body: (json['body'] ?? json['description'] ?? '').toString(),
       attachments: parsedAttachments,
-      date: (json['date'] ?? '').toString(),
-      time: (json['time'] ?? '').toString(),
-      publishedAt: json['publishedAt']?.toString() ?? json['createdAt']?.toString(),
+      date: formattedDate,
+      time: formattedTime,
+      publishedAt: pubAt,
       isRead: json['isRead'] == true,
     );
   }

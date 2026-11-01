@@ -16,7 +16,7 @@ class ClassUpdateScreen extends StatefulWidget {
   State<ClassUpdateScreen> createState() => _ClassUpdateScreenState();
 }
 
-class _ClassUpdateScreenState extends State<ClassUpdateScreen> {
+class _ClassUpdateScreenState extends State<ClassUpdateScreen> with WidgetsBindingObserver {
   String _searchTerm = '';
   ClassUpdateFilterType _selectedFilter = ClassUpdateFilterType.all;
   bool _didApplyArg = false;
@@ -24,9 +24,32 @@ class _ClassUpdateScreenState extends State<ClassUpdateScreen> {
   final TextEditingController _searchController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final appState = Provider.of<AppState>(context, listen: false);
+      if (appState.currentChild.id.isNotEmpty) {
+        appState.fetchClassUpdates(appState.currentChild.id);
+      }
+    });
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final appState = Provider.of<AppState>(context, listen: false);
+      if (appState.currentChild.id.isNotEmpty) {
+        appState.fetchClassUpdates(appState.currentChild.id);
+      }
+    }
   }
 
   @override
@@ -181,7 +204,7 @@ class _ClassUpdateScreenState extends State<ClassUpdateScreen> {
       padding: const EdgeInsets.only(bottom: 12),
       child: Container(
         decoration: BoxDecoration(
-          color: isUnread ? Colors.white : const Color(0xFFF8FAFC),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
             color: isUnread

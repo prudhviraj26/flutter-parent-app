@@ -1869,22 +1869,6 @@ class EventDetailScreen extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (event.attendanceImpact == 'NO_ATTENDANCE_REQUIRED')
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFFEF3C7),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text(
-                            'No Attendance Required',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFB45309),
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                   const SizedBox(height: 14),
@@ -2028,17 +2012,6 @@ class EventDetailScreen extends StatelessWidget {
                     title: 'Location',
                     value: event.location,
                   ),
-                  if (event.attendanceImpact.isNotEmpty) ...[
-                    const Divider(height: 20, color: AppColors.border),
-                    _buildDetailRow(
-                      icon: LucideIcons.userCheck,
-                      iconColor: const Color(0xFF059669),
-                      title: 'Attendance Policy',
-                      value: event.attendanceImpact == 'NO_ATTENDANCE_REQUIRED'
-                          ? 'Optional / No Attendance Required'
-                          : 'Regular Attendance Marked',
-                    ),
-                  ],
                 ],
               ),
             ),

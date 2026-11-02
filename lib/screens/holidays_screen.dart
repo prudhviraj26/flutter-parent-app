@@ -149,6 +149,7 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
   // Map of month group key (e.g. "2026-04") -> expanded bool
   final Map<String, bool> _expandedMonths = {};
   bool _initialized = false;
+  bool _showPastHolidays = false;
 
   @override
   void initState() {
@@ -179,11 +180,11 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
     final selectedYearId = appState.selectedAcademicYearId;
     final isLoading = appState.isHolidaysLoading;
 
-    // Current selected academic year item or fallback
+    // Current active academic year item
     AcademicYearItem? selectedYear;
     if (academicYears.isNotEmpty) {
       selectedYear = academicYears.firstWhere(
-        (y) => y.id == selectedYearId,
+        (y) => y.isCurrent,
         orElse: () => academicYears.first,
       );
     }
@@ -209,52 +210,56 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
       }).toList();
     }
 
-    // 2. Generate academic year month sequence based on the school's configured start and end months
-    final List<String> academicMonthTimeline = [];
-    if (selectedYear != null) {
-      DateTime runner = DateTime(selectedYear.startDate.year, selectedYear.startDate.month, 1);
-      final endLimit = DateTime(selectedYear.endDate.year, selectedYear.endDate.month, 1);
-      while (!runner.isAfter(endLimit)) {
-        academicMonthTimeline.add(DateFormat('yyyy-MM').format(runner));
-        runner = DateTime(runner.year, runner.month + 1, 1);
-      }
-    }
-
-    // 3. Group active holidays by year-month (e.g. "2026-06", "2026-07")
+    // 2. Group active holidays by year-month (e.g. "2026-11", "2026-12")
     final Map<String, List<Holiday>> holidaysByMonth = {};
     for (final h in activeHolidays) {
       final key = DateFormat('yyyy-MM').format(h.fullDate);
       holidaysByMonth.putIfAbsent(key, () => []).add(h);
     }
 
-    // 4. Sort month groups strictly following the school's academic year timeline
-    final sortedMonthEntries = holidaysByMonth.entries.toList()
-      ..sort((a, b) {
-        final idxA = academicMonthTimeline.indexOf(a.key);
-        final idxB = academicMonthTimeline.indexOf(b.key);
-        if (idxA != -1 && idxB != -1) return idxA.compareTo(idxB);
-        if (idxA != -1) return -1;
-        if (idxB != -1) return 1;
-        return a.key.compareTo(b.key);
-      });
-
-    // 5. Sort holidays within each month chronologically
-    for (final entry in sortedMonthEntries) {
+    // 3. Sort holidays within each month chronologically
+    for (final entry in holidaysByMonth.entries) {
       entry.value.sort((a, b) => a.fullDate.compareTo(b.fullDate));
     }
 
-    final monthKeys = sortedMonthEntries.map((e) => e.key).toList();
+    // 4. Partition months based on current month:
+    //    - Current month at top
+    //    - Upcoming months sorted chronologically
+    //    - Past months sorted chronologically
+    final now = DateTime.now();
+    final currentMonthKey = DateFormat('yyyy-MM').format(now);
 
-    // Initialize all months expanded by default once data is loaded
-    if (!_initialized && monthKeys.isNotEmpty) {
-      for (final key in monthKeys) {
+    final currentMonthEntries = holidaysByMonth.entries
+        .where((e) => e.key == currentMonthKey)
+        .toList();
+
+    final upcomingMonthEntries = holidaysByMonth.entries
+        .where((e) => e.key.compareTo(currentMonthKey) > 0)
+        .toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+
+    final pastMonthEntries = holidaysByMonth.entries
+        .where((e) => e.key.compareTo(currentMonthKey) < 0)
+        .toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+
+    final activeMonthEntries = [
+      ...currentMonthEntries,
+      ...upcomingMonthEntries,
+    ];
+
+    final activeMonthKeys = activeMonthEntries.map((e) => e.key).toList();
+
+    // 5. Initialize expansion states for active months (current & upcoming):
+    if (!_initialized && activeMonthKeys.isNotEmpty) {
+      for (final key in activeMonthKeys) {
         _expandedMonths.putIfAbsent(key, () => true);
       }
       _initialized = true;
     }
 
-    final bool allExpanded = monthKeys.isNotEmpty &&
-        monthKeys.every((k) => _expandedMonths[k] == true);
+    final bool allExpanded = activeMonthKeys.isNotEmpty &&
+        activeMonthKeys.every((k) => _expandedMonths[k] == true);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -297,7 +302,7 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
               selectedYear: selectedYear,
               selectedYearId: selectedYearId,
               holidayCount: activeHolidays.length,
-              monthKeys: monthKeys,
+              monthKeys: activeMonthKeys,
               allExpanded: allExpanded,
             ),
 
@@ -307,21 +312,27 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
                   ? const Center(
                       child: CircularProgressIndicator(color: AppColors.primaryTeal),
                     )
-                  : sortedMonthEntries.isEmpty
+                  : (activeMonthEntries.isEmpty && pastMonthEntries.isEmpty)
                       ? _buildEmptyState()
                       : ListView.builder(
                           physics: const AlwaysScrollableScrollPhysics(
                             parent: BouncingScrollPhysics(),
                           ),
                           padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-                          itemCount: sortedMonthEntries.length,
+                          itemCount: activeMonthEntries.length +
+                              (pastMonthEntries.isNotEmpty ? 1 : 0),
                           itemBuilder: (context, idx) {
-                            final entry = sortedMonthEntries[idx];
+                            if (idx == activeMonthEntries.length) {
+                              return _buildPastHolidaysSection(pastMonthEntries);
+                            }
+
+                            final entry = activeMonthEntries[idx];
                             final monthKey = entry.key;
                             final monthHolidays = entry.value;
                             final isExpanded = _expandedMonths[monthKey] ?? true;
+                            final isCurrentMonth = monthKey == currentMonthKey;
 
-                            // Title formatted as "April 2026", "January 2027"
+                            // Title formatted as "April 2026", "November 2026"
                             final displayMonthTitle = DateFormat('MMMM yyyy')
                                 .format(monthHolidays.first.fullDate);
 
@@ -330,6 +341,7 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
                               displayTitle: displayMonthTitle,
                               holidays: monthHolidays,
                               isExpanded: isExpanded,
+                              isCurrentMonth: isCurrentMonth,
                               onToggle: () {
                                 setState(() {
                                   _expandedMonths[monthKey] = !isExpanded;
@@ -367,181 +379,214 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
           bottom: BorderSide(color: Color(0xFFE2E8F0), width: 1),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              // Academic Year Dropdown
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+          // Static Academic Year Badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border.all(color: const Color(0xFFCBD5E1)),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  LucideIcons.calendar,
+                  size: 14,
+                  color: AppColors.primaryTeal,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  'Year: ${selectedYear?.name ?? '2026-27'}',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0F172A),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          // Total Holidays badge
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFDBEAFE)),
+            ),
+            child: Text(
+              '$holidayCount ${holidayCount == 1 ? 'holiday' : 'holidays'}',
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1D4ED8),
+              ),
+            ),
+          ),
+
+          const Spacer(),
+
+          // Expand / Collapse All Toggle Button
+          if (monthKeys.isNotEmpty)
+            InkWell(
+              onTap: () => _toggleAllMonths(monthKeys, !allExpanded),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: const Color(0xFFCBD5E1)),
-                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
-                      LucideIcons.calendar,
-                      size: 14,
-                      color: AppColors.primaryTeal,
+                    Icon(
+                      allExpanded
+                          ? LucideIcons.chevronsDownUp
+                          : LucideIcons.chevronsUpDown,
+                      size: 13,
+                      color: const Color(0xFF475569),
                     ),
-                    const SizedBox(width: 6),
-                    const Text(
-                      'Year: ',
-                      style: TextStyle(
-                        fontSize: 12,
+                    const SizedBox(width: 4),
+                    Text(
+                      allExpanded ? 'Collapse All' : 'Expand All',
+                      style: const TextStyle(
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF64748B),
-                      ),
-                    ),
-                    DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: selectedYear?.id,
-                        isDense: true,
-                        icon: const Icon(
-                          LucideIcons.chevronDown,
-                          size: 14,
-                          color: Color(0xFF64748B),
-                        ),
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F172A),
-                        ),
-                        items: academicYears.isNotEmpty
-                            ? academicYears.map((y) {
-                                return DropdownMenuItem<String>(
-                                  value: y.id,
-                                  child: Text(
-                                    y.name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
-                                      color: Color(0xFF0F172A),
-                                    ),
-                                  ),
-                                );
-                              }).toList()
-                            : [
-                                DropdownMenuItem<String>(
-                                  value: selectedYearId ?? '2026-27',
-                                  child: Text(
-                                    selectedYear?.name ?? '2026-27',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
-                                      color: Color(0xFF0F172A),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                        onChanged: (newId) {
-                          if (newId != null && newId != selectedYearId) {
-                            appState.setSelectedAcademicYearId(newId);
-                          }
-                        },
+                        color: Color(0xFF334155),
                       ),
                     ),
                   ],
                 ),
               ),
-
-              const SizedBox(width: 8),
-
-              // Total Holidays badge
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFEFF6FF),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: const Color(0xFFDBEAFE)),
-                ),
-                child: Text(
-                  '$holidayCount ${holidayCount == 1 ? 'holiday' : 'holidays'}',
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1D4ED8),
-                  ),
-                ),
-              ),
-
-              const Spacer(),
-
-              // Expand / Collapse All Toggle Button
-              if (monthKeys.isNotEmpty)
-                InkWell(
-                  onTap: () => _toggleAllMonths(monthKeys, !allExpanded),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFFCBD5E1)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          allExpanded
-                              ? LucideIcons.chevronsDownUp
-                              : LucideIcons.chevronsUpDown,
-                          size: 13,
-                          color: const Color(0xFF475569),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          allExpanded ? 'Collapse All' : 'Expand All',
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF334155),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-            ],
-          ),
-
-          // Academic Year Duration Chip (from web portal settings)
-          if (selectedYear != null) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    LucideIcons.calendarDays,
-                    size: 12,
-                    color: Color(0xFF64748B),
-                  ),
-                  const SizedBox(width: 5),
-                  Text(
-                    'Academic Period: ${selectedYear.formattedDuration}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF475569),
-                    ),
-                  ),
-                ],
-              ),
             ),
-          ],
         ],
       ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Past Holidays Collapsible Master Section
+  // ---------------------------------------------------------------------------
+  Widget _buildPastHolidaysSection(
+    List<MapEntry<String, List<Holiday>>> pastMonthEntries,
+  ) {
+    final pastHolidaysCount = pastMonthEntries.fold<int>(
+      0,
+      (sum, e) => sum + e.value.length,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 16),
+        InkWell(
+          onTap: () {
+            setState(() {
+              _showPastHolidays = !_showPastHolidays;
+            });
+          },
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: _showPastHolidays
+                    ? AppColors.primaryTeal.withValues(alpha: 0.5)
+                    : const Color(0xFFCBD5E1),
+                width: 1,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x08000000),
+                  blurRadius: 4,
+                  offset: Offset(0, 1),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        LucideIcons.history,
+                        size: 16,
+                        color: Color(0xFF64748B),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Past Holidays ($pastHolidaysCount)',
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0F172A),
+                      ),
+                    ),
+                  ],
+                ),
+                Row(
+                  children: [
+                    Text(
+                      _showPastHolidays ? 'Hide' : 'Show',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryTeal,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      _showPastHolidays ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+                      size: 16,
+                      color: AppColors.primaryTeal,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_showPastHolidays) ...[
+          const SizedBox(height: 4),
+          ...pastMonthEntries.map((entry) {
+            final monthKey = entry.key;
+            final monthHolidays = entry.value;
+            final isExpanded = _expandedMonths[monthKey] ?? false;
+            final displayMonthTitle = DateFormat('MMMM yyyy')
+                .format(monthHolidays.first.fullDate);
+
+            return _buildMonthAccordion(
+              monthKey: monthKey,
+              displayTitle: displayMonthTitle,
+              holidays: monthHolidays,
+              isExpanded: isExpanded,
+              isCurrentMonth: false,
+              onToggle: () {
+                setState(() {
+                  _expandedMonths[monthKey] = !isExpanded;
+                });
+              },
+            );
+          }),
+        ],
+      ],
     );
   }
 
@@ -553,6 +598,7 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
     required String displayTitle,
     required List<Holiday> holidays,
     required bool isExpanded,
+    required bool isCurrentMonth,
     required VoidCallback onToggle,
   }) {
     return Container(
@@ -561,8 +607,10 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: isExpanded ? const Color(0xFFCBD5E1) : const Color(0xFFE2E8F0),
-          width: 1,
+          color: isCurrentMonth
+              ? AppColors.primaryTeal.withValues(alpha: 0.5)
+              : (isExpanded ? const Color(0xFFCBD5E1) : const Color(0xFFE2E8F0)),
+          width: isCurrentMonth ? 1.5 : 1,
         ),
         boxShadow: [
           BoxShadow(
@@ -581,7 +629,9 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
             onTap: onToggle,
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              color: isExpanded ? const Color(0xFFF8FAFC) : Colors.white,
+              color: isCurrentMonth
+                  ? AppColors.primaryTeal.withValues(alpha: 0.04)
+                  : (isExpanded ? const Color(0xFFF8FAFC) : Colors.white),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -594,33 +644,60 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
                         child: Container(
                           padding: const EdgeInsets.all(3),
                           decoration: BoxDecoration(
-                            color: isExpanded
-                                ? const Color(0xFFEFF6FF)
-                                : const Color(0xFFF1F5F9),
+                            color: isCurrentMonth
+                                ? AppColors.primaryTeal.withValues(alpha: 0.15)
+                                : (isExpanded
+                                    ? const Color(0xFFEFF6FF)
+                                    : const Color(0xFFF1F5F9)),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Icon(
                             LucideIcons.chevronRight,
                             size: 14,
-                            color: isExpanded
-                                ? const Color(0xFF1D4ED8)
-                                : const Color(0xFF64748B),
+                            color: isCurrentMonth
+                                ? AppColors.primaryTeal
+                                : (isExpanded
+                                    ? const Color(0xFF1D4ED8)
+                                    : const Color(0xFF64748B)),
                           ),
                         ),
                       ),
                       const SizedBox(width: 10),
 
-                      // Month & Year title (e.g. "April 2026")
+                      // Month & Year title (e.g. "November 2026")
                       Text(
                         displayTitle,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.bold,
-                          color: Color(0xFF0F172A),
+                          color: isCurrentMonth
+                              ? AppColors.primaryTeal
+                              : const Color(0xFF0F172A),
                         ),
                       ),
 
                       const SizedBox(width: 8),
+
+                      if (isCurrentMonth) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryTeal.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.primaryTeal.withValues(alpha: 0.3)),
+                          ),
+                          child: const Text(
+                            'THIS MONTH',
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.primaryTeal,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
 
                       // Month count badge
                       Container(

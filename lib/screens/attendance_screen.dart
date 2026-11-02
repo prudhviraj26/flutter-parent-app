@@ -89,8 +89,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         borderColor = const Color(0xFFD1C4E9);
         break;
       case 'H':
-        bgColor = const Color(0xFFE3F2FD);
-        borderColor = const Color(0xFFBBDEFB);
+        bgColor = const Color(0xFFF3E8FF);
+        borderColor = const Color(0xFFE9D5FF);
         break;
       case 'W':
         bgColor = const Color(0xFFF8F9FA);
@@ -121,7 +121,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       case 'HD':
         return const Color(0xFF512DA8);
       case 'H':
-        return const Color(0xFF1565C0);
+        return const Color(0xFF7E22CE);
       case 'W':
         return const Color(0xFF9E9E9E);
       default:
@@ -159,7 +159,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       case 'HD':
         return const Color(0xFF512DA8);
       case 'H':
-        return const Color(0xFF1565C0);
+        return const Color(0xFF7E22CE);
       case 'W':
         return const Color(0xFF757575);
       default:
@@ -207,28 +207,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildLegendItem(Color color, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10.5,
-            fontWeight: FontWeight.w600,
-            color: Colors.grey[700],
-          ),
-        ),
-      ],
     );
   }
 
@@ -624,9 +602,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   _buildStatChip(
                     label: 'holiday'.tr(),
                     value: '${attendance.summary.holiday}',
-                    bg: const Color(0xFFECEFF1),
-                    text: const Color(0xFF455A64),
-                    border: const Color(0xFFCFD8DC),
+                    bg: const Color(0xFFF3E8FF),
+                    text: const Color(0xFF7E22CE),
+                    border: const Color(0xFFE9D5FF),
                   ),
                 ],
               ),
@@ -649,28 +627,6 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 padding: const EdgeInsets.all(18),
                 child: Column(
                   children: [
-                    // Legend Row
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF9FAFB),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFF3F4F6)),
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                      margin: const EdgeInsets.only(bottom: 16),
-                      child: Wrap(
-                        alignment: WrapAlignment.center,
-                        spacing: 12,
-                        runSpacing: 6,
-                        children: [
-                          _buildLegendItem(const Color(0xFF00838F), 'present'.tr()),
-                          _buildLegendItem(const Color(0xFFC62828), 'absent'.tr()),
-                          _buildLegendItem(const Color(0xFFF57F17), 'Late'),
-                          _buildLegendItem(const Color(0xFF1565C0), 'holiday'.tr()),
-                          _buildLegendItem(const Color(0xFF9E9E9E), 'weekend'.tr()),
-                        ],
-                      ),
-                    ),
 
                     // Weekdays Row (Sun..Sat)
                     Row(
@@ -785,7 +741,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                                       width: 4,
                                       height: 4,
                                       decoration: const BoxDecoration(
-                                        color: Color(0xFF1565C0),
+                                        color: Color(0xFF7E22CE),
                                         shape: BoxShape.circle,
                                       ),
                                     ),

@@ -933,11 +933,36 @@ class AppState extends ChangeNotifier {
       }
     }
 
+    // Overlay school holidays for target month & year from academic year holiday calendar
+    int holidayCount = (summary['holiday'] as num?)?.toInt() ?? 0;
+    final yearHolidays = (_selectedAcademicYearId != null &&
+            _academicYearHolidaysDb.containsKey(_selectedAcademicYearId))
+        ? _academicYearHolidaysDb[_selectedAcademicYearId]!
+        : _holidaysDb;
+
+    for (final h in yearHolidays) {
+      if (h.fullDate.year == targetYear && h.fullDate.month == targetMonth) {
+        final dayNum = h.fullDate.day.toString();
+        final existing = calMap[dayNum];
+        // Overlay if there is no explicit teacher attendance record (or was generic Sunday 'W')
+        if (existing == null || existing.status == 'W' || existing.status == '-') {
+          calMap[dayNum] = AttendanceCalendarDay(
+            status: 'H',
+            reason: h.title,
+            notes: h.type.isNotEmpty ? '${h.type} Holiday' : 'School Holiday',
+            date: h.fullDate,
+          );
+          if (existing == null || existing.status != 'H') {
+            holidayCount++;
+          }
+        }
+      }
+    }
+
     final present = (summary['present'] as num?)?.toInt() ?? 0;
     final absent = (summary['absent'] as num?)?.toInt() ?? 0;
     final late = (summary['late'] as num?)?.toInt() ?? 0;
     final halfDay = (summary['halfDay'] as num?)?.toInt() ?? 0;
-    final holiday = (summary['holiday'] as num?)?.toInt() ?? 0;
     final totalWorkingDays = (summary['totalWorkingDays'] as num?)?.toInt() ?? (present + absent + late + halfDay);
     final percentage = (summary['attendancePercentage'] as num?)?.toInt() ?? (
       totalWorkingDays > 0 ? (((present + late + halfDay * 0.5) / totalWorkingDays) * 100).round() : 100
@@ -954,7 +979,7 @@ class AppState extends ChangeNotifier {
         absent: absent,
         late: late,
         halfDay: halfDay,
-        holiday: holiday,
+        holiday: holidayCount,
         weekend: weekendCount,
         totalWorkingDays: totalWorkingDays,
         attendancePercentage: percentage,
@@ -967,6 +992,9 @@ class AppState extends ChangeNotifier {
     _isAttendanceLoading = true;
     notifyListeners();
     try {
+      if (_holidaysDb.isEmpty) {
+        await fetchAcademicYearsAndHolidays(silent: true);
+      }
       final attData = await ParentApiService.getChildAttendance(studentId, month: month, year: year);
       if (attData['summary'] != null) {
         _attendanceDb[studentId] = _parseAttendanceData(attData);

@@ -434,6 +434,7 @@ class AppState extends ChangeNotifier {
             final bool isCT = item['isClassTeacher'] as bool;
             return Teacher(
               id: item['id'] as String,
+              staffId: item['id'] as String,
               name: item['name'] as String,
               subject: subs.isNotEmpty ? subs.join(', ') : (isCT ? 'Class Teacher' : 'Subject Teacher'),
               subjects: subs,
@@ -1175,7 +1176,7 @@ class AppState extends ChangeNotifier {
   List<ExamResult> get examResults => _examResultsDb;
   List<Book> get books => _booksDb[currentChild.id] ?? [];
 
-  // Fetch active chat thread with class teacher for current child
+  // Fetch active chat thread for current child
   Future<void> fetchChatForActiveChild() async {
     if (currentChild.id.isEmpty) return;
     try {
@@ -1184,6 +1185,7 @@ class AppState extends ChangeNotifier {
         _schoolWorkingHours = SchoolWorkingHours.fromJson(res['schoolWorkingHours'] as Map<String, dynamic>?);
       }
       final threadId = res['threadId']?.toString();
+      final staffId = (res['teacherId'] ?? res['staffId'])?.toString();
       final teacherName = res['teacherName']?.toString() ?? 'Class Teacher';
       final msgsJson = res['messages'] as List<dynamic>? ?? [];
       final msgs = msgsJson.map((m) => Message.fromJson(m as Map<String, dynamic>)).toList();
@@ -1197,15 +1199,25 @@ class AppState extends ChangeNotifier {
       }
 
       final list = _teachersDb[currentChild.id] ?? [];
-      final idx = list.indexWhere((t) => t.isClassTeacher || t.id == threadId);
+      // Standardize teacher lookup by matching both staffId and threadId — DO NOT link to classTeacher
+      final idx = list.indexWhere((t) =>
+        (staffId != null && t.matches(staffId)) ||
+        (threadId != null && t.matches(threadId))
+      );
+
+      final existing = idx != -1 ? list[idx] : null;
+      final resolvedId = existing?.id ?? staffId ?? threadId ?? 'ct_${currentChild.id}';
       final teacherEntry = Teacher(
-        id: threadId ?? (idx != -1 ? list[idx].id : 'ct_${currentChild.id}'),
-        name: teacherName,
-        subject: 'Class Teacher',
-        teacherClass: currentChild.grade,
-        isClassTeacher: true,
-        lastMessage: msgs.isNotEmpty ? msgs.last.text : null,
-        lastMessageAt: lastMsgAt,
+        id: resolvedId,
+        staffId: staffId ?? existing?.staffId,
+        threadId: threadId ?? existing?.threadId,
+        name: existing != null && existing.name.isNotEmpty ? existing.name : teacherName,
+        subject: existing != null && existing.subject.isNotEmpty ? existing.subject : 'Class Teacher',
+        subjects: existing?.subjects ?? [],
+        teacherClass: existing?.teacherClass ?? currentChild.grade,
+        isClassTeacher: existing?.isClassTeacher ?? true,
+        lastMessage: msgs.isNotEmpty ? msgs.last.text : existing?.lastMessage,
+        lastMessageAt: lastMsgAt ?? existing?.lastMessageAt,
         unreadCount: uCount,
         unread: uCount > 0,
         messages: msgs,
@@ -1226,7 +1238,7 @@ class AppState extends ChangeNotifier {
   // Mark teacher conversation as read
   void markTeacherChatRead(String teacherId) {
     final list = _teachersDb[currentChild.id] ?? [];
-    final idx = list.indexWhere((t) => t.id == teacherId);
+    final idx = list.indexWhere((t) => t.matches(teacherId));
     if (idx != -1) {
       list[idx].unreadCount = 0;
       list[idx].unread = false;
@@ -1241,12 +1253,15 @@ class AppState extends ChangeNotifier {
   Future<void> pollChatDelta(String teacherId) async {
     if (currentChild.id.isEmpty) return;
     final list = _teachersDb[currentChild.id] ?? [];
-    final idx = list.indexWhere((t) => t.id == teacherId);
+    final idx = list.indexWhere((t) => t.matches(teacherId));
     if (idx == -1) return;
 
     String? latestTime;
     if (list[idx].messages.isNotEmpty) {
-      latestTime = list[idx].messages.last.timestamp;
+      final lastMsg = list[idx].messages.last;
+      if (DateTime.tryParse(lastMsg.timestamp) != null) {
+        latestTime = lastMsg.timestamp;
+      }
     }
 
     try {
@@ -1274,7 +1289,7 @@ class AppState extends ChangeNotifier {
   // Soft delete a message
   Future<void> deleteParentMessage(String teacherId, String messageId) async {
     final list = _teachersDb[currentChild.id] ?? [];
-    final idx = list.indexWhere((t) => t.id == teacherId);
+    final idx = list.indexWhere((t) => t.matches(teacherId));
     if (idx != -1) {
       final msgIdx = list[idx].messages.indexWhere((m) => m.id == messageId);
       if (msgIdx != -1) {
@@ -1299,16 +1314,16 @@ class AppState extends ChangeNotifier {
   // Message Teacher with optimistic append and status updates
   void addParentMessage(String teacherId, String text) {
     final list = _teachersDb[currentChild.id] ?? [];
-    final idx = list.indexWhere((t) => t.id == teacherId);
+    final idx = list.indexWhere((t) => t.matches(teacherId));
     final now = DateTime.now();
-    final timeStr = "${now.hour > 12 ? now.hour - 12 : now.hour}:${now.minute.toString().padLeft(2, '0')} ${now.hour >= 12 ? 'PM' : 'AM'}";
+    final timeIso = now.toIso8601String();
     
     final tempId = "temp_${now.millisecondsSinceEpoch}";
     final newMsg = Message(
       id: tempId,
       text: text,
       sender: 'parent',
-      timestamp: timeStr,
+      timestamp: timeIso,
       status: 'sending',
     );
 
@@ -1321,15 +1336,17 @@ class AppState extends ChangeNotifier {
 
     if (currentChild.id.isNotEmpty) {
       ParentApiService.sendMessage(currentChild.id, text).then((res) {
-        if (idx != -1 && res['id'] != null) {
-          final mIdx = list[idx].messages.indexWhere((m) => m.id == tempId);
+        final currentList = _teachersDb[currentChild.id] ?? [];
+        final currentIdx = currentList.indexWhere((t) => t.matches(teacherId));
+        if (currentIdx != -1 && res['id'] != null) {
+          final mIdx = currentList[currentIdx].messages.indexWhere((m) => m.id == tempId);
           if (mIdx != -1) {
-            list[idx].messages[mIdx] = Message(
+            currentList[currentIdx].messages[mIdx] = Message(
               id: res['id'].toString(),
               text: text,
               sender: 'parent',
-              timestamp: timeStr,
-              status: 'delivered',
+              timestamp: res['createdAt']?.toString() ?? timeIso,
+              status: 'sent', // Single Tick once server confirms receipt
             );
             notifyListeners();
           }

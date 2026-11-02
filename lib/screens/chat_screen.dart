@@ -383,6 +383,9 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final appState = Provider.of<AppState>(context, listen: false);
       appState.markTeacherChatRead(widget.teacher.id);
+      if (widget.teacher.messages.isEmpty) {
+        appState.fetchChatForActiveChild();
+      }
       _scrollToBottom();
     });
 
@@ -472,7 +475,9 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
     final appState = Provider.of<AppState>(context);
     final activeTeachers = appState.teachers;
     final activeTeacher = activeTeachers.firstWhere(
-      (t) => t.id == widget.teacher.id,
+      (t) => t.matches(widget.teacher.id) ||
+             (widget.teacher.staffId != null && t.matches(widget.teacher.staffId!)) ||
+             (widget.teacher.threadId != null && t.matches(widget.teacher.threadId!)),
       orElse: () => widget.teacher,
     );
     final messages = activeTeacher.messages;

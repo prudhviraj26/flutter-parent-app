@@ -183,6 +183,8 @@ class Message {
 
 class Teacher {
   final String id;
+  final String? staffId;
+  String? threadId;
   final String name;
   final String subject;
   final List<String> subjects;
@@ -196,6 +198,8 @@ class Teacher {
 
   Teacher({
     required this.id,
+    this.staffId,
+    this.threadId,
     required this.name,
     required this.subject,
     this.subjects = const [],
@@ -207,6 +211,11 @@ class Teacher {
     this.unread = false,
     this.messages = const [],
   });
+
+  bool matches(String identifier) {
+    if (identifier.isEmpty) return false;
+    return id == identifier || staffId == identifier || threadId == identifier;
+  }
 
   String get displaySubjects {
     if (subjects.isNotEmpty) {
@@ -245,9 +254,13 @@ class Teacher {
     }
 
     final uCount = json['parentUnreadCount'] as int? ?? json['unreadCount'] as int? ?? 0;
+    final sId = (json['staffId'] ?? json['teacherId'] ?? json['id'])?.toString();
+    final tId = json['threadId']?.toString();
 
     return Teacher(
-      id: (json['id'] ?? '').toString(),
+      id: (json['id'] ?? sId ?? '').toString(),
+      staffId: sId,
+      threadId: tId,
       name: (json['name'] ?? '').toString(),
       subject: subs.isNotEmpty ? subs.join(', ') : (json['subject'] as String? ?? ''),
       subjects: subs,
@@ -264,6 +277,8 @@ class Teacher {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
+      'staffId': staffId,
+      'threadId': threadId,
       'name': name,
       'subject': subject,
       'subjects': subjects,

@@ -727,27 +727,13 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
     if (status == 'sending') {
       return const Icon(LucideIcons.clock, size: 11, color: Colors.white70);
     } else if (status == 'sent') {
-      return const Icon(LucideIcons.check, size: 13, color: Colors.white70);
+      return const Icon(Icons.done, size: 14, color: Colors.white70);
     } else if (status == 'read') {
-      // Double blue tick
-      return const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(LucideIcons.check, size: 13, color: Color(0xFF38BDF8)),
-          SizedBox(width: -6),
-          Icon(LucideIcons.check, size: 13, color: Color(0xFF38BDF8)),
-        ],
-      );
+      // Double sky-blue tick
+      return const Icon(Icons.done_all, size: 14, color: Color(0xFF38BDF8));
     } else {
       // Double gray tick (delivered)
-      return const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(LucideIcons.check, size: 13, color: Colors.white70),
-          SizedBox(width: -6),
-          Icon(LucideIcons.check, size: 13, color: Colors.white70),
-        ],
-      );
+      return const Icon(Icons.done_all, size: 14, color: Colors.white70);
     }
   }
 

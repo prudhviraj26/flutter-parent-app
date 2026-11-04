@@ -159,11 +159,20 @@ class AppState extends ChangeNotifier {
     if (userJson != null) {
       try {
         final Map<String, dynamic> userData = json.decode(userJson);
-        _loggedIn = userData['loggedIn'] as bool? ?? false;
-        _mobile = userData['mobile'] as String?;
-        _mustChangePassword = userData['mustChangePassword'] as bool? ?? false;
-        _acceptedTermsVersion = userData['acceptedTermsVersion'] as String? ?? _prefs?.getString('veyho_accepted_terms_version');
-        _acceptedPrivacyVersion = userData['acceptedPrivacyVersion'] as String? ?? _prefs?.getString('veyho_accepted_privacy_version');
+        final role = userData['role']?.toString();
+        // RBAC: Ensure role is parent
+        if (role != null && role != 'parent') {
+          debugPrint('RBAC: Non-parent user detected in parent app storage. Purging session.');
+          await ApiService.clearTokens();
+          await _prefs?.remove('veyho_parent_user');
+          _loggedIn = false;
+        } else {
+          _loggedIn = userData['loggedIn'] as bool? ?? false;
+          _mobile = userData['mobile'] as String?;
+          _mustChangePassword = userData['mustChangePassword'] as bool? ?? false;
+          _acceptedTermsVersion = userData['acceptedTermsVersion'] as String? ?? _prefs?.getString('veyho_accepted_terms_version');
+          _acceptedPrivacyVersion = userData['acceptedPrivacyVersion'] as String? ?? _prefs?.getString('veyho_accepted_privacy_version');
+        }
       } catch (e) {
         _prefs?.remove('veyho_parent_user');
       }
@@ -209,6 +218,31 @@ class AppState extends ChangeNotifier {
 
   bool _isLoadingLive = false;
   bool get isLoadingLive => _isLoadingLive;
+
+  
+  DateTime? _lastSyncTime;
+
+  /// Automatically synchronizes live data in background with a 3-minute throttle.
+  Future<void> syncLiveData({bool force = false}) async {
+    if (!_loggedIn) return;
+
+    final now = DateTime.now();
+    if (!force && _lastSyncTime != null && now.difference(_lastSyncTime!).inMinutes < 3) {
+      debugPrint('[AppState] syncLiveData throttled (${now.difference(_lastSyncTime!).inSeconds}s since last sync)');
+      return;
+    }
+
+    _lastSyncTime = now;
+    debugPrint('[AppState] Auto-refreshing live parent data in background...');
+    try {
+      await fetchLiveProfile();
+      if (_children.isNotEmpty && _currentChild != null) {
+        await fetchLiveChildData(_currentChild!.id);
+      }
+    } catch (e) {
+      debugPrint('[AppState] Background syncLiveData note: $e');
+    }
+  }
 
   Future<void> fetchLiveProfile() async {
     if (!_loggedIn) return;
@@ -727,6 +761,7 @@ class AppState extends ChangeNotifier {
         final userData = {
           'loggedIn': true,
           'mobile': mobileNumber,
+          'role': 'parent',
           'mustChangePassword': _mustChangePassword,
           'acceptedTermsVersion': _acceptedTermsVersion,
           'acceptedPrivacyVersion': _acceptedPrivacyVersion,

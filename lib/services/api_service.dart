@@ -10,7 +10,9 @@ class ApiService {
     return 'https://veyhoprod-crb8ahfge9dmhwep.centralindia-01.azurewebsites.net/v1';
   }
 
-  static const _storage = FlutterSecureStorage();
+  static const _storage = FlutterSecureStorage(
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+  );
   static const String _tokenKey = 'veyho_parent_access_token';
   static const String _refreshTokenKey = 'veyho_parent_refresh_token';
 
@@ -65,8 +67,12 @@ class ApiService {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'x-refresh-token': refreshToken,
+          'x-app-context': 'parent',
         },
-        body: jsonEncode({'refreshToken': refreshToken}),
+        body: jsonEncode({
+          'refreshToken': refreshToken,
+          'app': 'parent',
+        }),
       );
 
       if (res.statusCode >= 200 && res.statusCode < 300) {
@@ -80,9 +86,14 @@ class ApiService {
           return true;
         }
       } else if (res.statusCode == 401 || res.statusCode == 403) {
-        // Refresh token is expired or revoked on server
-        debugPrint('Parent App refresh token expired/revoked on server');
         debugPrint('Parent App refresh rejected: ${res.statusCode}');
+        try {
+          final errBody = jsonDecode(res.body);
+          final msg = (errBody['message'] ?? errBody['error'] ?? '').toString().toLowerCase();
+          if (msg.contains('expired') || msg.contains('revoked') || msg.contains('invalid or expired')) {
+            await clearTokens();
+          }
+        } catch (_) {}
       }
     } catch (e) {
       debugPrint('Parent App silent token refresh failed: $e');

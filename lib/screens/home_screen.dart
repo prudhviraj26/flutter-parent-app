@@ -40,9 +40,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       final appState = Provider.of<AppState>(context, listen: false);
-      if (appState.loggedIn && appState.currentChild.id.isNotEmpty) {
-        debugPrint('[AppLifecycle] Resumed from background -> auto-syncing live child data');
-        appState.fetchLiveChildData(appState.currentChild.id);
+      if (appState.loggedIn) {
+        debugPrint('[AppLifecycle] Resumed from background -> auto-syncing live parent data');
+        appState.syncLiveData();
       }
     }
   }

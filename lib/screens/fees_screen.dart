@@ -4,7 +4,6 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../state/app_state.dart';
 import '../constants/colors.dart';
-import '../widgets/bottom_nav.dart';
 
 class FeesScreen extends StatelessWidget {
   const FeesScreen({super.key});
@@ -223,7 +222,6 @@ class FeesScreen extends StatelessWidget {
           ),
         ],
       ),
-      bottomNavigationBar: const BottomNav(active: 'home'),
     );
   }
 }

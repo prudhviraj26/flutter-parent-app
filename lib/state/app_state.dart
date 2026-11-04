@@ -700,9 +700,20 @@ class AppState extends ChangeNotifier {
         'mobile': mobileNumber,
         'password': password,
         'platform': 'mobile',
+        'app': 'parent',
       }, requireAuth: false);
 
       if (res is Map<String, dynamic> && res['accessToken'] != null) {
+        final user = res['user'] as Map<String, dynamic>?;
+        final role = user?['role']?.toString();
+        final roles = user?['roles'] is List
+            ? (user!['roles'] as List).map((r) => r.toString()).toList()
+            : <String>[];
+        final isParentRole = role == 'parent' || roles.contains('parent');
+        if (!isParentRole) {
+          await ApiService.clearTokens();
+          throw Exception('Access denied. Only registered parents can log in to this app.');
+        }
         final accessToken = res['accessToken'] as String;
         final refreshToken = res['refreshToken'] as String?;
         await ApiService.saveTokens(accessToken: accessToken, refreshToken: refreshToken);

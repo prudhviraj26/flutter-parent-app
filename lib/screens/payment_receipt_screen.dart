@@ -29,8 +29,10 @@ class PaymentReceiptScreen extends StatelessWidget {
           child: Container(color: AppColors.border, height: 1),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
         child: Column(
           children: [
             // Receipt Card
@@ -123,6 +125,7 @@ class PaymentReceiptScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

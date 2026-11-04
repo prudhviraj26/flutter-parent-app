@@ -39,12 +39,7 @@ class AllSectionsScreen extends StatelessWidget {
 
     // Compute unread counts for communication modules
     final noticeUnread = appState.unreadNoticesCount;
-    final classworkUnread = appState.classUpdates
-        .where((u) => u.isClasswork && !appState.isClassUpdateRead(u.id))
-        .length;
-    final homeworkUnread = appState.classUpdates
-        .where((u) => u.isHomework && !appState.isClassUpdateRead(u.id))
-        .length;
+    final classUpdatesUnread = appState.unreadClassUpdatesCount;
 
     // Compute upcoming events count
     final now = DateTime.now();
@@ -95,20 +90,11 @@ class AllSectionsScreen extends StatelessWidget {
             badgeText: noticeUnread > 0 ? '$noticeUnread new' : null,
           ),
           FeatureItem(
-            name: 'classWork'.tr(),
+            name: 'classUpdate'.tr(),
             icon: LucideIcons.bookOpen,
             path: '/class-update',
-            arguments: 'Classwork',
             color: AppColors.secondaryOrange,
-            badgeText: classworkUnread > 0 ? '$classworkUnread new' : null,
-          ),
-          FeatureItem(
-            name: 'homeWork'.tr(),
-            icon: LucideIcons.house,
-            path: '/class-update',
-            arguments: 'Homework',
-            color: AppColors.primaryTeal,
-            badgeText: homeworkUnread > 0 ? '$homeworkUnread new' : null,
+            badgeText: classUpdatesUnread > 0 ? '$classUpdatesUnread new' : null,
           ),
         ],
       ),

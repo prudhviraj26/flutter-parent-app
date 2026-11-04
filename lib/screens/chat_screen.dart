@@ -7,6 +7,7 @@ import '../state/app_state.dart';
 import '../models/models.dart';
 import '../constants/colors.dart';
 import '../widgets/bottom_nav.dart';
+import '../services/notification_navigation_service.dart';
 
 class TalkToTeacherScreen extends StatefulWidget {
   const TalkToTeacherScreen({super.key});
@@ -31,9 +32,12 @@ class _TalkToTeacherScreenState extends State<TalkToTeacherScreen> {
   Widget build(BuildContext context) {
     final appState = Provider.of<AppState>(context);
     final allTeachers = List<Teacher>.from(appState.teachers);
+    // Limit chatting to Class Teacher only
+    final classTeachers = allTeachers.where((t) => t.isClassTeacher).toList();
+    final displayedTeachers = classTeachers.isNotEmpty ? classTeachers : (allTeachers.isNotEmpty ? [allTeachers.first] : <Teacher>[]);
 
     // Sort descending by lastMessageAt or creation date
-    allTeachers.sort((a, b) {
+    displayedTeachers.sort((a, b) {
       final aDate = a.lastMessageAt ?? DateTime(2000);
       final bDate = b.lastMessageAt ?? DateTime(2000);
       return bDate.compareTo(aDate);
@@ -42,8 +46,8 @@ class _TalkToTeacherScreenState extends State<TalkToTeacherScreen> {
     final totalUnread = appState.unreadTeacherMessagesCount;
 
     final filteredTeachers = _activeFilter == 'unread'
-        ? allTeachers.where((t) => t.unreadCount > 0 || t.unread).toList()
-        : allTeachers;
+        ? displayedTeachers.where((t) => t.unreadCount > 0 || t.unread).toList()
+        : displayedTeachers;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -379,6 +383,9 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
   @override
   void initState() {
     super.initState();
+    // Track active chat thread to suppress duplicate foreground push notifications
+    NotificationNavigationService.activeChatThreadId = widget.teacher.threadId ?? widget.teacher.id;
+
     // Mark conversation read on enter
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final appState = Provider.of<AppState>(context, listen: false);
@@ -408,6 +415,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
 
   @override
   void dispose() {
+    NotificationNavigationService.activeChatThreadId = null;
     _smartPollTimer?.cancel();
     _msgController.dispose();
     _scrollController.dispose();

@@ -4,6 +4,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 import '../constants/colors.dart';
+import '../widgets/safe_back_scope.dart';
 import '../models/models.dart';
 import '../state/app_state.dart';
 
@@ -261,16 +262,23 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
     final bool allExpanded = activeMonthKeys.isNotEmpty &&
         activeMonthKeys.every((k) => _expandedMonths[k] == true);
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
+    return SafeBackScope(
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8FAFC),
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          surfaceTintColor: Colors.transparent,
+          leading: IconButton(
+            icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain, size: 20),
+            onPressed: () {
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              } else {
+                Navigator.pushReplacementNamed(context, '/home');
+              }
+            },
+          ),
         title: Text(
           'holidays'.tr(),
           style: const TextStyle(
@@ -353,6 +361,7 @@ class _HolidaysScreenState extends State<HolidaysScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

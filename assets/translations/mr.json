@@ -314,5 +314,7 @@
   "longTermConditions": "दीर्घकालीन परिस्थिती",
   "regularPrescriptions": "नियमित औषधे",
   "primaryUrgentContact": "आपत्कालीन परिस्थितीत प्राथमिक संपर्क व्यक्ती.",
-  "routineDoctorReference": "नियमित संदर्भासाठी डॉक्टर किंवा क्लिनिकचा तपशील."
-}
+  "routineDoctorReference": "नियमित संदर्भासाठी डॉक्टर किंवा क्लिनिकचा तपशील.",
+  "hello": "नमस्कार",
+  "schoolCalendar": "शालेय दिनदर्शिका"
+}

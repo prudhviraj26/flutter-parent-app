@@ -6,6 +6,7 @@ import 'package:easy_localization/easy_localization.dart';
 import '../state/app_state.dart';
 import '../models/models.dart';
 import '../constants/colors.dart';
+import '../widgets/safe_back_scope.dart';
 import '../widgets/coming_soon_placeholder.dart';
 import '../services/gallery_local_store.dart';
 export 'health_records_screen.dart';
@@ -1405,19 +1406,26 @@ class _EventsScreenState extends State<EventsScreen> {
 
     const categories = ['ALL', 'CULTURAL', 'ACADEMIC', 'SPORTS', 'GENERAL'];
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(
-          'events'.tr(),
-          style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
-          onPressed: () => Navigator.pop(context),
-        ),
+    return SafeBackScope(
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: Text(
+            'events'.tr(),
+            style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
+            onPressed: () {
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              } else {
+                Navigator.pushReplacementNamed(context, '/home');
+              }
+            },
+          ),
         actions: [
           IconButton(
             icon: isLoading
@@ -1724,6 +1732,7 @@ class _EventsScreenState extends State<EventsScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

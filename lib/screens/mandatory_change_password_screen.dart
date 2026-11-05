@@ -23,11 +23,28 @@ class _MandatoryChangePasswordScreenState extends State<MandatoryChangePasswordS
   bool _isLoading = false;
 
   @override
+  void initState() {
+    super.initState();
+    _newPasswordController.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
   void dispose() {
     _currentPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  bool _isPasswordValid(String pwd) {
+    if (pwd.length < 8) return false;
+    if (!RegExp(r'[A-Z]').hasMatch(pwd)) return false;
+    if (!RegExp(r'[a-z]').hasMatch(pwd)) return false;
+    if (!RegExp(r'[0-9]').hasMatch(pwd)) return false;
+    if (!RegExp(r'[^A-Za-z0-9\s]').hasMatch(pwd)) return false;
+    return true;
   }
 
   Future<void> _handleSubmit() async {
@@ -46,10 +63,10 @@ class _MandatoryChangePasswordScreenState extends State<MandatoryChangePasswordS
       return;
     }
 
-    if (newPassword.length < 8) {
+    if (!_isPasswordValid(newPassword)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('New password must be at least 8 characters long'),
+          content: Text('Password must be at least 8 characters long and include an uppercase letter, lowercase letter, number, and special character.'),
           backgroundColor: AppColors.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -262,7 +279,7 @@ class _MandatoryChangePasswordScreenState extends State<MandatoryChangePasswordS
 
                       // New Password
                       const Text(
-                        'New Password (Min 8 characters)',
+                        'New Password',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -298,6 +315,33 @@ class _MandatoryChangePasswordScreenState extends State<MandatoryChangePasswordS
                           ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         ),
+                      ),
+                      const SizedBox(height: 6),
+                      Builder(
+                        builder: (context) {
+                          final isValid = _isPasswordValid(_newPasswordController.text);
+                          final color = isValid ? const Color(0xFF16A34A) : AppColors.textMuted;
+                          return Row(
+                            children: [
+                              Icon(
+                                isValid ? LucideIcons.circleCheck : LucideIcons.info,
+                                size: 13,
+                                color: color,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  'Min 8 chars with uppercase, lowercase, number & special char',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w500,
+                                    color: color,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                        },
                       ),
                       const SizedBox(height: 16),
 

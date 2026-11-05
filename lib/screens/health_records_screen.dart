@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../constants/colors.dart';
+import '../widgets/safe_back_scope.dart';
 import '../models/models.dart';
 import '../state/app_state.dart';
 import '../widgets/child_switcher.dart';
@@ -48,15 +49,22 @@ class _HealthRecordsScreenState extends State<HealthRecordsScreen> {
     final record = appState.getChildHealthRecord(currentChild.id);
     final bool isLoading = appState.isHealthLoading;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
-          onPressed: () => Navigator.pop(context),
-        ),
+    return SafeBackScope(
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
+            onPressed: () {
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              } else {
+                Navigator.pushReplacementNamed(context, '/home');
+              }
+            },
+          ),
         title: Text(
           'healthRecords'.tr(),
           style: const TextStyle(
@@ -274,6 +282,7 @@ class _HealthRecordsScreenState extends State<HealthRecordsScreen> {
               ),
             ),
         ],
+      ),
       ),
     );
   }

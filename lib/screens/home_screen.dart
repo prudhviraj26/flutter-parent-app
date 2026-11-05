@@ -27,6 +27,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (appState.loggedIn && appState.currentChild.id.isNotEmpty) {
         appState.fetchLiveChildData(appState.currentChild.id);
       }
+      if (appState.holidays.isEmpty) {
+        appState.fetchAcademicYearsAndHolidays(silent: true);
+      }
     });
   }
 
@@ -57,12 +60,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final events = appState.events;
     final childAvatar = appState.childAvatars[currentChild.id];
 
-    // Compute upcoming events count (events occurring today or in future)
+    // Compute upcoming events & holidays count (occurring today or in future)
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final upcomingEventsCount = events.where((e) {
       final dt = DateTime.tryParse(e.startDate) ?? DateTime.tryParse(e.date);
       return dt != null && !dt.isBefore(today);
+    }).length;
+    final upcomingHolidaysCount = appState.holidays.where((h) {
+      return !h.fullDate.isBefore(today);
     }).length;
 
     // School name dynamic
@@ -135,16 +141,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      schoolName,
+                                      '${'hello'.tr()}, ${appState.parentFirstName}',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
                                         color: Colors.white,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w400,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
                                       ),
                                     ),
                                     const SizedBox(height: 2),
+                                    Text(
+                                      schoolName,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: Colors.white.withValues(alpha: 0.85),
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w400,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
                                     GestureDetector(
                                       onTap: () {
                                         setState(() {
@@ -419,20 +436,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                   const SizedBox(height: 16),
 
-                  // 3. Fees & Events Rows
+                  // 3. Holidays & Events Rows
                   Row(
                     children: [
                       Expanded(
                         child: _buildDashboardTile(
                           onTap: () {
-                            Navigator.pushNamed(context, '/fees');
+                            Navigator.pushNamed(context, '/holidays');
                           },
                           color: AppColors.secondaryOrange,
-                          icon: LucideIcons.indianRupee,
-                          title: 'fees'.tr(),
-                          subtitle: fees.status == 'Due'
-                              ? '₹${fees.amount.toInt().toString()} ${'due'.tr()}'
-                              : 'allPaid'.tr(),
+                          icon: LucideIcons.calendarDays,
+                          title: 'holidays'.tr(),
+                          subtitle: upcomingHolidaysCount > 0
+                              ? '$upcomingHolidaysCount ${'upcoming'.tr()}'
+                              : 'schoolCalendar'.tr(),
                         ),
                       ),
                       const SizedBox(width: 16),

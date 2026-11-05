@@ -8,6 +8,7 @@ import '../models/models.dart';
 import '../constants/colors.dart';
 import '../services/attachment_local_store.dart';
 import 'secondary_screens.dart';
+import '../widgets/safe_back_scope.dart';
 
 enum NoticeFilterType {
   all,
@@ -462,9 +463,10 @@ class _NoticeScreenState extends State<NoticeScreen> with WidgetsBindingObserver
 
     final unreadFilteredCount = filteredNotices.where((n) => !appState.isNoticeRead(n.id)).length;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Column(
+    return SafeBackScope(
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: Column(
         children: [
           // Header (Compact, modern gradient container)
           Container(
@@ -546,7 +548,13 @@ class _NoticeScreenState extends State<NoticeScreen> with WidgetsBindingObserver
                   Row(
                     children: [
                       GestureDetector(
-                        onTap: () => Navigator.pop(context),
+                        onTap: () {
+                          if (Navigator.of(context).canPop()) {
+                            Navigator.of(context).pop();
+                          } else {
+                            Navigator.pushReplacementNamed(context, '/home');
+                          }
+                        },
                         child: Container(
                           width: 36,
                           height: 36,
@@ -736,6 +744,7 @@ class _NoticeScreenState extends State<NoticeScreen> with WidgetsBindingObserver
             ),
           ),
         ],
+      ),
       ),
     );
   }

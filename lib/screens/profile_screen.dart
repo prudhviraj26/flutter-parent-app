@@ -6,6 +6,7 @@ import 'package:easy_localization/easy_localization.dart';
 import '../state/app_state.dart';
 import '../constants/colors.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/safe_back_scope.dart';
 import '../widgets/veyho_logo.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -32,19 +33,26 @@ class ProfileScreen extends StatelessWidget {
       Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(
-          'profile'.tr(),
-          style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
-          onPressed: () => Navigator.pushReplacementNamed(context, '/home'),
-        ),
+    return SafeBackScope(
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: Text(
+            'profile'.tr(),
+            style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
+            onPressed: () {
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              } else {
+                Navigator.pushReplacementNamed(context, '/home');
+              }
+            },
+          ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(color: AppColors.border, height: 1),
@@ -231,7 +239,8 @@ class ProfileScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: const BottomNav(active: 'profile'),
+        bottomNavigationBar: const BottomNav(active: 'profile'),
+      ),
     );
   }
 }
@@ -334,6 +343,31 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
   bool _obscureNew = true;
   bool _obscureConfirm = true;
 
+  @override
+  void initState() {
+    super.initState();
+    _newPassController.addListener(() {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _oldPassController.dispose();
+    _newPassController.dispose();
+    _confirmPassController.dispose();
+    super.dispose();
+  }
+
+  bool _isPasswordValid(String pwd) {
+    if (pwd.length < 8) return false;
+    if (!RegExp(r'[A-Z]').hasMatch(pwd)) return false;
+    if (!RegExp(r'[a-z]').hasMatch(pwd)) return false;
+    if (!RegExp(r'[0-9]').hasMatch(pwd)) return false;
+    if (!RegExp(r'[^A-Za-z0-9\s]').hasMatch(pwd)) return false;
+    return true;
+  }
+
   Future<void> _savePassword() async {
     final current = _oldPassController.text.trim();
     final newPass = _newPassController.text.trim();
@@ -345,9 +379,12 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
       );
       return;
     }
-    if (newPass.length < 8) {
+    if (!_isPasswordValid(newPass)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('New password must be at least 8 characters'), backgroundColor: AppColors.error),
+        const SnackBar(
+          content: Text('Password must be at least 8 characters long and include an uppercase letter, lowercase letter, number, and special character.'),
+          backgroundColor: AppColors.error,
+        ),
       );
       return;
     }
@@ -454,6 +491,33 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
                   ),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
                 ),
+              ),
+              const SizedBox(height: 6),
+              Builder(
+                builder: (context) {
+                  final isValid = _isPasswordValid(_newPassController.text);
+                  final color = isValid ? const Color(0xFF16A34A) : AppColors.textMuted;
+                  return Row(
+                    children: [
+                      Icon(
+                        isValid ? LucideIcons.circleCheck : LucideIcons.info,
+                        size: 13,
+                        color: color,
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          'Min 8 chars with uppercase, lowercase, number & special char',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w500,
+                            color: color,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
               const SizedBox(height: 16),
               TextField(

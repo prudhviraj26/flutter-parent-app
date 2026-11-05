@@ -60,9 +60,6 @@ class _LoginScreenState extends State<LoginScreen> {
       final success = await appState.login(mobile, password);
 
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
         if (success) {
           // Check if legal assent is needed (first time on device or major version bump)
           final needsConsent = await appState.checkNeedsLegalAssent();
@@ -75,6 +72,11 @@ class _LoginScreenState extends State<LoginScreen> {
               deviceUuid: telemetry.deviceUuid,
             );
             if (!agreed) {
+              if (mounted) {
+                setState(() {
+                  _isLoading = false;
+                });
+              }
               return;
             }
             final termsDoc = appState.activeLegalDocs?['terms'] as Map<String, dynamic>?;
@@ -85,17 +87,19 @@ class _LoginScreenState extends State<LoginScreen> {
             );
           }
 
-          // Request / register push notifications (1 single native OS dialog on first login, silent on repeat logins)
-          await NotificationNavigationService.requestPermissionAndRegister();
-
           if (mounted) {
             if (appState.mustChangePassword) {
               Navigator.pushReplacementNamed(context, '/set-new-password');
             } else {
               Navigator.pushReplacementNamed(context, '/home');
             }
+            // Seamlessly register device push token in background without blocking or flipping screen
+            NotificationNavigationService.requestPermissionAndRegister();
           }
         } else {
+          setState(() {
+            _isLoading = false;
+          });
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Invalid mobile number or password'),

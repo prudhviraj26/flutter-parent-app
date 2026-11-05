@@ -7,6 +7,7 @@ import '../state/app_state.dart';
 import '../models/models.dart';
 import '../constants/colors.dart';
 import '../widgets/bottom_nav.dart';
+import '../widgets/safe_back_scope.dart';
 import '../services/notification_navigation_service.dart';
 
 class TalkToTeacherScreen extends StatefulWidget {
@@ -49,19 +50,26 @@ class _TalkToTeacherScreenState extends State<TalkToTeacherScreen> {
         ? displayedTeachers.where((t) => t.unreadCount > 0 || t.unread).toList()
         : displayedTeachers;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(
-          'talkToTeacher'.tr(),
-          style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
-          onPressed: () => Navigator.pushReplacementNamed(context, '/home'),
-        ),
+    return SafeBackScope(
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: Text(
+            'talkToTeacher'.tr(),
+            style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
+            onPressed: () {
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              } else {
+                Navigator.pushReplacementNamed(context, '/home');
+              }
+            },
+          ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(color: AppColors.border, height: 1),
@@ -297,7 +305,8 @@ class _TalkToTeacherScreenState extends State<TalkToTeacherScreen> {
           ),
         ],
       ),
-      bottomNavigationBar: const BottomNav(active: 'teacher'),
+        bottomNavigationBar: const BottomNav(active: 'teacher'),
+      ),
     );
   }
 
@@ -673,6 +682,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
                       Expanded(
                         child: TextField(
                           controller: _msgController,
+                          textCapitalization: TextCapitalization.sentences,
                           maxLength: 1000,
                           maxLines: 4,
                           minLines: 1,

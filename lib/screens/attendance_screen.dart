@@ -5,6 +5,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'dart:convert';
 import '../state/app_state.dart';
 import '../constants/colors.dart';
+import '../widgets/safe_back_scope.dart';
 import '../models/models.dart';
 
 class AttendanceScreen extends StatefulWidget {
@@ -414,19 +415,26 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     final now = DateTime.now();
     final isCurrentMonth = now.year == _selectedYear && now.month == _selectedMonth;
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(
-          'attendance'.tr(),
-          style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
-          onPressed: () => Navigator.pop(context),
-        ),
+    return SafeBackScope(
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: Text(
+            'attendance'.tr(),
+            style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
+            onPressed: () {
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              } else {
+                Navigator.pushReplacementNamed(context, '/home');
+              }
+            },
+          ),
         actions: [
           IconButton(
             icon: const Icon(LucideIcons.refreshCw, color: AppColors.textMain, size: 20),
@@ -876,6 +884,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

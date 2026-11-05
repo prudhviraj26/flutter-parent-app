@@ -17,6 +17,7 @@ class AppState extends ChangeNotifier {
   String _language = 'en';
   bool _loggedIn = false;
   String? _mobile;
+  String? _parentName;
 
   // Selected Child Specs
   Child? _currentChild;
@@ -80,6 +81,17 @@ class AppState extends ChangeNotifier {
   bool get loggedIn => _loggedIn;
   bool get mustChangePassword => _mustChangePassword;
   String? get mobile => _mobile;
+  String get parentName => (_parentName != null && _parentName!.trim().isNotEmpty) ? _parentName!.trim() : 'Parent';
+  String get parentFirstName {
+    final name = parentName;
+    if (name.isEmpty || name == 'Parent') return name;
+    final parts = name.split(RegExp(r'\s+'));
+    const prefixes = {'mr', 'mr.', 'mrs', 'mrs.', 'ms', 'ms.', 'dr', 'dr.', 'shri', 'smt'};
+    if (parts.length > 1 && prefixes.contains(parts[0].toLowerCase())) {
+      return parts[1];
+    }
+    return parts.first;
+  }
   Child get currentChild {
     if (_currentChild != null) return _currentChild!;
     if (_children.isNotEmpty) return _children[0];
@@ -165,10 +177,12 @@ class AppState extends ChangeNotifier {
           debugPrint('RBAC: Non-parent user detected in parent app storage. Purging session.');
           await ApiService.clearTokens();
           await _prefs?.remove('veyho_parent_user');
+          await _prefs?.remove('veyho_cached_parent_name');
           _loggedIn = false;
         } else {
           _loggedIn = userData['loggedIn'] as bool? ?? false;
           _mobile = userData['mobile'] as String?;
+          _parentName = (userData['parentName'] as String?) ?? _prefs?.getString('veyho_cached_parent_name');
           _mustChangePassword = userData['mustChangePassword'] as bool? ?? false;
           _acceptedTermsVersion = userData['acceptedTermsVersion'] as String? ?? _prefs?.getString('veyho_accepted_terms_version');
           _acceptedPrivacyVersion = userData['acceptedPrivacyVersion'] as String? ?? _prefs?.getString('veyho_accepted_privacy_version');
@@ -251,6 +265,11 @@ class AppState extends ChangeNotifier {
       notifyListeners();
 
       final profile = await ParentApiService.getProfile();
+      if (profile['name'] != null && profile['name'].toString().trim().isNotEmpty) {
+        _parentName = profile['name'].toString().trim();
+        await _prefs?.setString('veyho_cached_parent_name', _parentName!);
+      }
+
       if (profile['schoolName'] != null && profile['schoolName'].toString().isNotEmpty) {
         _schoolName = profile['schoolName'].toString();
         await _prefs?.setString('veyho_cached_school_name', _schoolName);
@@ -754,6 +773,10 @@ class AppState extends ChangeNotifier {
 
         _loggedIn = true;
         _mobile = mobileNumber;
+        if (res['user'] != null && res['user']['name'] != null && res['user']['name'].toString().trim().isNotEmpty) {
+          _parentName = res['user']['name'].toString().trim();
+          await _prefs?.setString('veyho_cached_parent_name', _parentName!);
+        }
         _mustChangePassword = res['mustChangePassword'] as bool? ?? false;
         _acceptedTermsVersion = res['acceptedTermsVersion'] as String? ?? _prefs?.getString('veyho_accepted_terms_version');
         _acceptedPrivacyVersion = res['acceptedPrivacyVersion'] as String? ?? _prefs?.getString('veyho_accepted_privacy_version');
@@ -762,6 +785,7 @@ class AppState extends ChangeNotifier {
           'loggedIn': true,
           'mobile': mobileNumber,
           'role': 'parent',
+          'parentName': _parentName,
           'mustChangePassword': _mustChangePassword,
           'acceptedTermsVersion': _acceptedTermsVersion,
           'acceptedPrivacyVersion': _acceptedPrivacyVersion,
@@ -888,6 +912,7 @@ class AppState extends ChangeNotifier {
   Future<void> logout() async {
     _loggedIn = false;
     _mobile = null;
+    _parentName = null;
     _schoolName = '';
     _schoolLogoUrl = null;
     _schoolLogoBase64 = null;
@@ -907,6 +932,7 @@ class AppState extends ChangeNotifier {
     await _prefs?.remove('veyho_cached_school_name');
     await _prefs?.remove('veyho_cached_children');
     await _prefs?.remove('veyho_active_child_id');
+    await _prefs?.remove('veyho_cached_parent_name');
 
     // NOTE: We intentionally retain 'veyho_child_avatar_${child.id}', 'veyho_cached_school_logo',
     // and version tags in SharedPreferences. This guarantees zero Azure egress cost and instant 0ms

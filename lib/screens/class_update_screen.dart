@@ -5,6 +5,7 @@ import 'package:easy_localization/easy_localization.dart';
 import '../state/app_state.dart';
 import '../models/models.dart';
 import '../constants/colors.dart';
+import '../widgets/safe_back_scope.dart';
 import '../services/attachment_local_store.dart';
 
 enum ClassUpdateFilterType { all, unread, classwork, homework }
@@ -481,9 +482,10 @@ class _ClassUpdateScreenState extends State<ClassUpdateScreen> with WidgetsBindi
     // 3. Sort descending by date
     filteredUpdates.sort((a, b) => b.dateTime.compareTo(a.dateTime));
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: Column(
+    return SafeBackScope(
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: Column(
         children: [
           // Header (Compact, modern gradient container)
           Container(
@@ -565,7 +567,13 @@ class _ClassUpdateScreenState extends State<ClassUpdateScreen> with WidgetsBindi
                   Row(
                     children: [
                       GestureDetector(
-                        onTap: () => Navigator.pop(context),
+                        onTap: () {
+                          if (Navigator.of(context).canPop()) {
+                            Navigator.of(context).pop();
+                          } else {
+                            Navigator.pushReplacementNamed(context, '/home');
+                          }
+                        },
                         child: Container(
                           width: 36,
                           height: 36,
@@ -755,6 +763,7 @@ class _ClassUpdateScreenState extends State<ClassUpdateScreen> with WidgetsBindi
             ),
           ),
         ],
+      ),
       ),
     );
   }

@@ -138,7 +138,6 @@
   "logout": "Logout",
   "employeeId": "Employee ID",
   "designation": "Designation",
-  "classTeacher": "Class Teacher",
   "subjectTeacher": "Subject Teacher",
   "subjects": "Subjects",
   "assignedClass": "Assigned Class",
@@ -315,5 +314,7 @@
   "longTermConditions": "Long-term conditions",
   "regularPrescriptions": "Regular prescriptions",
   "primaryUrgentContact": "Primary contact in case of an urgent medical situation.",
-  "routineDoctorReference": "Physician or clinic details for routine reference."
-}
+  "routineDoctorReference": "Physician or clinic details for routine reference.",
+  "hello": "Hello",
+  "schoolCalendar": "School Calendar"
+}

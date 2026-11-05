@@ -84,6 +84,11 @@ class _ClickwrapDialogState extends State<ClickwrapDialog>
         setState(() {
           _termsRead = true;
         });
+        Future.delayed(const Duration(milliseconds: 600), () {
+          if (mounted && _tabController.index == 0) {
+            _tabController.animateTo(1);
+          }
+        });
       }
     }
   }
@@ -223,6 +228,8 @@ class _ClickwrapDialogState extends State<ClickwrapDialog>
     final mediaQuery = MediaQuery.of(context);
     final double sheetHeight = mediaQuery.size.height * 0.90;
     final bool canAgree = _termsRead && _privacyRead;
+    final bool isTermsTab = _tabController.index == 0;
+    final bool showGuide = isTermsTab ? !_termsRead : !_privacyRead;
 
     return PopScope(
       canPop: false,
@@ -449,7 +456,7 @@ class _ClickwrapDialogState extends State<ClickwrapDialog>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Status guideline notice
-                  if (!canAgree)
+                  if (showGuide)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 10),
                       child: Row(
@@ -462,11 +469,9 @@ class _ClickwrapDialogState extends State<ClickwrapDialog>
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            !_termsRead && !_privacyRead
-                                ? 'Scroll to the end of both documents to enable button'
-                                : (!_termsRead
-                                    ? 'Scroll to the end of Terms & Conditions'
-                                    : 'Scroll to the end of Privacy Policy'),
+                            isTermsTab
+                                ? 'Scroll to the end of Terms & Conditions'
+                                : 'Scroll to the end of Privacy Policy',
                             style: const TextStyle(
                               fontSize: 12,
                               color: AppColors.textMuted,
@@ -482,16 +487,16 @@ class _ClickwrapDialogState extends State<ClickwrapDialog>
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: canAgree && !_isSubmitting
-                          ? _handleAgreeAndContinue
-                          : null,
+                      onPressed: isTermsTab
+                          ? (_termsRead ? () => _tabController.animateTo(1) : null)
+                          : (canAgree && !_isSubmitting ? _handleAgreeAndContinue : null),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.secondaryOrange,
                         disabledBackgroundColor:
                             AppColors.border.withValues(alpha: 0.6),
                         foregroundColor: Colors.white,
                         disabledForegroundColor: AppColors.textMuted,
-                        elevation: canAgree ? 2 : 0,
+                        elevation: (isTermsTab ? _termsRead : canAgree) ? 2 : 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(20),
                         ),
@@ -511,21 +516,25 @@ class _ClickwrapDialogState extends State<ClickwrapDialog>
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  canAgree
-                                      ? 'Agree & Continue'
-                                      : 'Read Both to Continue',
+                                  isTermsTab
+                                      ? (_termsRead
+                                          ? 'Agree & Proceed to Privacy'
+                                          : 'Scroll to Read Terms')
+                                      : (canAgree
+                                          ? 'Agree & Continue'
+                                          : 'Scroll to Read Privacy Policy'),
                                   style: TextStyle(
-                                    fontSize: 16,
+                                    fontSize: 15,
                                     fontWeight: FontWeight.w700,
-                                    color: canAgree
+                                    color: (isTermsTab ? _termsRead : canAgree)
                                         ? Colors.white
                                         : AppColors.textMuted,
                                   ),
                                 ),
-                                if (canAgree) ...[
+                                if (isTermsTab ? _termsRead : canAgree) ...[
                                   const SizedBox(width: 8),
-                                  const Icon(
-                                    LucideIcons.arrowRight,
+                                  Icon(
+                                    isTermsTab ? LucideIcons.arrowRight : LucideIcons.check,
                                     size: 18,
                                     color: Colors.white,
                                   ),

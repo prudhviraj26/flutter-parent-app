@@ -4,6 +4,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../state/app_state.dart';
 import '../constants/colors.dart';
+import '../widgets/safe_back_scope.dart';
 
 class FeatureItem {
   final String name;
@@ -169,19 +170,26 @@ class AllSectionsScreen extends StatelessWidget {
       ),
     ];
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text(
-          'viewAllSections'.tr(),
-          style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
-          onPressed: () => Navigator.pop(context),
-        ),
+    return SafeBackScope(
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: Text(
+            'viewAllSections'.tr(),
+            style: const TextStyle(color: AppColors.textMain, fontWeight: FontWeight.bold),
+          ),
+          backgroundColor: Colors.white,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(LucideIcons.arrowLeft, color: AppColors.textMain),
+            onPressed: () {
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              } else {
+                Navigator.pushReplacementNamed(context, '/home');
+              }
+            },
+          ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(color: AppColors.border, height: 1),
@@ -235,7 +243,8 @@ class AllSectionsScreen extends StatelessWidget {
           },
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildFeatureCard(BuildContext context, FeatureItem feature) {

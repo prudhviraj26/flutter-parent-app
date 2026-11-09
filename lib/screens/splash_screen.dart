@@ -49,41 +49,48 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
       }
     });
 
-    // Stagger redirect
-    Timer(const Duration(milliseconds: 2300), () async {
-      if (mounted) {
-        final appState = Provider.of<AppState>(context, listen: false);
-        if (appState.loggedIn) {
-          final needsConsent = await appState.checkNeedsLegalAssent();
-          if (needsConsent && mounted) {
-            final telemetry = await DeviceInfoService.getDeviceTelemetry();
-            if (!mounted) return;
-            final agreed = await ClickwrapDialog.show(
-              context,
-              activeDocs: appState.activeLegalDocs,
-              deviceUuid: telemetry.deviceUuid,
-            );
-            if (!agreed) {
-              if (mounted) Navigator.pushReplacementNamed(context, '/login');
-              return;
-            }
-            final termsDoc = appState.activeLegalDocs?['terms'] as Map<String, dynamic>?;
-            final privacyDoc = appState.activeLegalDocs?['privacy'] as Map<String, dynamic>?;
-            await appState.onLegalConsentAccepted(
-              termsVersion: termsDoc?['version']?.toString() ?? 'v1.0.0',
-              privacyVersion: privacyDoc?['version']?.toString() ?? 'v1.0.0',
-            );
-          }
-          if (mounted) {
-            Navigator.pushReplacementNamed(context, '/home');
-            NotificationNavigationService.checkInitialNotification();
-            NotificationNavigationService.requestPermissionAndRegister();
-          }
-        } else {
-          Navigator.pushReplacementNamed(context, '/login');
+    // Synchronized auth bootstrap and navigation
+    _bootstrapAndNavigate();
+  }
+
+  Future<void> _bootstrapAndNavigate() async {
+    final animDelay = Future.delayed(const Duration(milliseconds: 1800));
+    final appState = Provider.of<AppState>(context, listen: false);
+    final results = await Future.wait([animDelay, appState.bootstrapAuth()]);
+    final authResult = results[1] as AuthBootstrapResult;
+
+    if (!mounted) return;
+
+    if (authResult == AuthBootstrapResult.authenticated ||
+        authResult == AuthBootstrapResult.offlineAuthenticated) {
+      final needsConsent = await appState.checkNeedsLegalAssent();
+      if (needsConsent && mounted) {
+        final telemetry = await DeviceInfoService.getDeviceTelemetry();
+        if (!mounted) return;
+        final agreed = await ClickwrapDialog.show(
+          context,
+          activeDocs: appState.activeLegalDocs,
+          deviceUuid: telemetry.deviceUuid,
+        );
+        if (!agreed) {
+          if (mounted) Navigator.pushReplacementNamed(context, '/login');
+          return;
         }
+        final termsDoc = appState.activeLegalDocs?['terms'] as Map<String, dynamic>?;
+        final privacyDoc = appState.activeLegalDocs?['privacy'] as Map<String, dynamic>?;
+        await appState.onLegalConsentAccepted(
+          termsVersion: termsDoc?['version']?.toString() ?? 'v1.0.0',
+          privacyVersion: privacyDoc?['version']?.toString() ?? 'v1.0.0',
+        );
       }
-    });
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/home');
+        NotificationNavigationService.checkInitialNotification();
+        NotificationNavigationService.requestPermissionAndRegister();
+      }
+    } else {
+      Navigator.pushReplacementNamed(context, '/login');
+    }
   }
 
   @override

@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
+
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +12,12 @@ import '../services/parent_api_service.dart';
 import '../services/gallery_local_store.dart';
 import '../services/attachment_local_store.dart';
 import '../services/notification_navigation_service.dart';
+
+enum AuthBootstrapResult {
+  authenticated,
+  offlineAuthenticated,
+  unauthenticated,
+}
 
 class AppState extends ChangeNotifier {
   SharedPreferences? _prefs;
@@ -121,8 +130,54 @@ class AppState extends ChangeNotifier {
     'taglineMarathi': 'वेहो द्वारे संचालित'
   };
 
+  Completer<void>? _initCompleter;
+
   AppState() {
-    _initPreferences();
+    ensureInitialized();
+  }
+
+  Future<void> ensureInitialized() async {
+    if (_initCompleter != null) {
+      return _initCompleter!.future;
+    }
+    final completer = Completer<void>();
+    _initCompleter = completer;
+    try {
+      await _initPreferences();
+    } finally {
+      if (!completer.isCompleted) {
+        completer.complete();
+      }
+    }
+  }
+
+  Future<AuthBootstrapResult> bootstrapAuth() async {
+    await ensureInitialized();
+    final refreshToken = await ApiService.getRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty) {
+      _loggedIn = false;
+      return AuthBootstrapResult.unauthenticated;
+    }
+
+    try {
+      final refreshed = await ApiService.refreshTokenSilently();
+      if (refreshed) {
+        _loggedIn = true;
+        fetchLiveProfile();
+        return AuthBootstrapResult.authenticated;
+      }
+    } catch (e) {
+      debugPrint('[AppState] Splash proactive refresh error: $e');
+    }
+
+    // Offline tolerance check: if refresh failed due to network, check if we have cached user info
+    final checkToken = await ApiService.getRefreshToken();
+    if (checkToken != null && checkToken.isNotEmpty && _loggedIn) {
+      return AuthBootstrapResult.offlineAuthenticated;
+    }
+
+    _loggedIn = false;
+    return AuthBootstrapResult.unauthenticated;
   }
 
   // Load preferences from local storage

@@ -239,8 +239,10 @@ class AppState extends ChangeNotifier {
           _mobile = userData['mobile'] as String?;
           _parentName = (userData['parentName'] as String?) ?? _prefs?.getString('veyho_cached_parent_name');
           _mustChangePassword = userData['mustChangePassword'] as bool? ?? false;
-          _acceptedTermsVersion = userData['acceptedTermsVersion'] as String? ?? _prefs?.getString('veyho_accepted_terms_version');
-          _acceptedPrivacyVersion = userData['acceptedPrivacyVersion'] as String? ?? _prefs?.getString('veyho_accepted_privacy_version');
+          _acceptedTermsVersion = userData['acceptedTermsVersion'] as String? ??
+              (_mobile != null && _mobile!.isNotEmpty ? _prefs?.getString('veyho_accepted_terms_$_mobile') : null);
+          _acceptedPrivacyVersion = userData['acceptedPrivacyVersion'] as String? ??
+              (_mobile != null && _mobile!.isNotEmpty ? _prefs?.getString('veyho_accepted_privacy_$_mobile') : null);
         }
       } catch (e) {
         _prefs?.remove('veyho_parent_user');
@@ -296,7 +298,7 @@ class AppState extends ChangeNotifier {
     if (!_loggedIn) return;
 
     final now = DateTime.now();
-    if (!force && _lastSyncTime != null && now.difference(_lastSyncTime!).inMinutes < 3) {
+    if (!force && _lastSyncTime != null && now.difference(_lastSyncTime!).inSeconds < 5) {
       debugPrint('[AppState] syncLiveData throttled (${now.difference(_lastSyncTime!).inSeconds}s since last sync)');
       return;
     }
@@ -759,17 +761,19 @@ class AppState extends ChangeNotifier {
       final termsMajor = terms?['isMajor'] == true;
       final privacyMajor = privacy?['isMajor'] == true;
 
-      final localTerms = _acceptedTermsVersion ?? _prefs?.getString('veyho_accepted_terms_version');
-      final localPrivacy = _acceptedPrivacyVersion ?? _prefs?.getString('veyho_accepted_privacy_version');
+      final userTerms = _acceptedTermsVersion ??
+          (_mobile != null && _mobile!.isNotEmpty ? _prefs?.getString('veyho_accepted_terms_$_mobile') : null);
+      final userPrivacy = _acceptedPrivacyVersion ??
+          (_mobile != null && _mobile!.isNotEmpty ? _prefs?.getString('veyho_accepted_privacy_$_mobile') : null);
 
-      if (localTerms == null || localPrivacy == null) {
+      if (userTerms == null || userPrivacy == null) {
         return true;
       }
 
-      if (termsMajor && localTerms != targetTermsVer) {
+      if (termsMajor && userTerms != targetTermsVer) {
         return true;
       }
-      if (privacyMajor && localPrivacy != targetPrivacyVer) {
+      if (privacyMajor && userPrivacy != targetPrivacyVer) {
         return true;
       }
 
@@ -786,8 +790,11 @@ class AppState extends ChangeNotifier {
   }) async {
     _acceptedTermsVersion = termsVersion;
     _acceptedPrivacyVersion = privacyVersion;
-    await _prefs?.setString('veyho_accepted_terms_version', termsVersion);
-    await _prefs?.setString('veyho_accepted_privacy_version', privacyVersion);
+
+    if (_mobile != null && _mobile!.isNotEmpty) {
+      await _prefs?.setString('veyho_accepted_terms_$_mobile', termsVersion);
+      await _prefs?.setString('veyho_accepted_privacy_$_mobile', privacyVersion);
+    }
 
     final userJson = _prefs?.getString('veyho_parent_user');
     if (userJson != null) {
@@ -833,8 +840,12 @@ class AppState extends ChangeNotifier {
           await _prefs?.setString('veyho_cached_parent_name', _parentName!);
         }
         _mustChangePassword = res['mustChangePassword'] as bool? ?? false;
-        _acceptedTermsVersion = res['acceptedTermsVersion'] as String? ?? _prefs?.getString('veyho_accepted_terms_version');
-        _acceptedPrivacyVersion = res['acceptedPrivacyVersion'] as String? ?? _prefs?.getString('veyho_accepted_privacy_version');
+        _acceptedTermsVersion = res['acceptedTermsVersion'] as String? ??
+            res['user']?['acceptedTermsVersion'] as String? ??
+            _prefs?.getString('veyho_accepted_terms_$mobileNumber');
+        _acceptedPrivacyVersion = res['acceptedPrivacyVersion'] as String? ??
+            res['user']?['acceptedPrivacyVersion'] as String? ??
+            _prefs?.getString('veyho_accepted_privacy_$mobileNumber');
 
         final userData = {
           'loggedIn': true,

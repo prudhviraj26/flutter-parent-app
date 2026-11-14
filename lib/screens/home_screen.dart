@@ -141,24 +141,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      '${'hello'.tr()}, ${appState.parentFirstName}',
+                                      schoolName,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
                                         color: Colors.white,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
                                       ),
                                     ),
                                     const SizedBox(height: 2),
                                     Text(
-                                      schoolName,
+                                      '${'hello'.tr()}, ${appState.parentFirstName}',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
-                                        color: Colors.white.withValues(alpha: 0.85),
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w400,
+                                        color: Colors.white.withValues(alpha: 0.9),
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
                                     const SizedBox(height: 4),

@@ -19,6 +19,7 @@ class TalkToTeacherScreen extends StatefulWidget {
 
 class _TalkToTeacherScreenState extends State<TalkToTeacherScreen> {
   String _activeFilter = 'all'; // 'all' or 'unread'
+  Timer? _threadListTimer;
 
   @override
   void initState() {
@@ -27,6 +28,19 @@ class _TalkToTeacherScreenState extends State<TalkToTeacherScreen> {
       final appState = Provider.of<AppState>(context, listen: false);
       appState.fetchChatForActiveChild();
     });
+    // Auto-refresh conversation list every 8 seconds while screen is open
+    _threadListTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if (mounted) {
+        final appState = Provider.of<AppState>(context, listen: false);
+        appState.fetchChatForActiveChild();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _threadListTimer?.cancel();
+    super.dispose();
   }
 
   @override

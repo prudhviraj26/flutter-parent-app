@@ -364,7 +364,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
-                                      '${appState.unreadNoticesCount} new',
+                                      '${appState.unreadNoticesCount > 99 ? "99+" : appState.unreadNoticesCount} new',
                                       style: const TextStyle(
                                         color: AppColors.primaryTeal,
                                         fontSize: 11,
@@ -569,7 +569,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
-                        '$unreadCount new',
+                        '${unreadCount > 99 ? "99+" : unreadCount} new',
                         style: TextStyle(
                           color: color,
                           fontSize: 10,

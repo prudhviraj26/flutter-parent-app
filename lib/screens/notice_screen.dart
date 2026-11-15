@@ -183,7 +183,7 @@ class _NoticeScreenState extends State<NoticeScreen> with WidgetsBindingObserver
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  '$count',
+                  count > 99 ? '99+' : '$count',
                   style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,

@@ -291,7 +291,7 @@ class _TalkToTeacherScreenState extends State<TalkToTeacherScreen> {
                                                     borderRadius: BorderRadius.circular(12),
                                                   ),
                                                   child: Text(
-                                                    '${teacher.unreadCount} new',
+                                                    '${teacher.unreadCount > 99 ? "99+" : teacher.unreadCount} new',
                                                     style: const TextStyle(
                                                       color: Colors.white,
                                                       fontSize: 10,
@@ -400,6 +400,7 @@ class TeacherChatScreen extends StatefulWidget {
 class _TeacherChatScreenState extends State<TeacherChatScreen> {
   final TextEditingController _msgController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  final FocusNode _focusNode = FocusNode();
   Timer? _smartPollTimer;
   int _charCount = 0;
 
@@ -417,6 +418,13 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
         appState.fetchChatForActiveChild();
       }
       _scrollToBottom();
+    });
+
+    // Auto-scroll to latest message when keyboard pops up
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus) {
+        _scrollToBottom();
+      }
     });
 
     // Start adaptive smart polling (every 3 seconds)
@@ -442,6 +450,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
     _smartPollTimer?.cancel();
     _msgController.dispose();
     _scrollController.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -590,10 +599,14 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
 
           // Message Thread List
           Expanded(
-            child: ListView.builder(
-              controller: _scrollController,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              itemCount: messages.length,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => FocusScope.of(context).unfocus(),
+              child: ListView.builder(
+                controller: _scrollController,
+                keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                itemCount: messages.length,
               itemBuilder: (context, idx) {
                 final message = messages[idx];
                 final isMe = message.sender == 'parent';
@@ -680,6 +693,7 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
               },
             ),
           ),
+        ),
 
           // Message Input Field Bar
           Container(
@@ -696,7 +710,13 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
                       Expanded(
                         child: TextField(
                           controller: _msgController,
+                          focusNode: _focusNode,
+                          keyboardType: TextInputType.text,
                           textCapitalization: TextCapitalization.sentences,
+                          enableSuggestions: true,
+                          autocorrect: true,
+                          textInputAction: TextInputAction.send,
+                          onSubmitted: (_) => _sendMessage(),
                           maxLength: 1000,
                           maxLines: 4,
                           minLines: 1,
@@ -716,18 +736,24 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      GestureDetector(
-                        onTap: _sendMessage,
-                        child: Container(
-                          width: 44,
-                          height: 44,
-                          decoration: const BoxDecoration(
-                            color: AppColors.primaryTeal,
-                            shape: BoxShape.circle,
-                          ),
-                          alignment: Alignment.center,
-                          child: const Icon(LucideIcons.send, color: Colors.white, size: 18),
-                        ),
+                      Builder(
+                        builder: (context) {
+                          final canSend = _msgController.text.trim().isNotEmpty;
+                          return GestureDetector(
+                            onTap: canSend ? _sendMessage : null,
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 150),
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: canSend ? AppColors.primaryTeal : AppColors.primaryTeal.withValues(alpha: 0.35),
+                                shape: BoxShape.circle,
+                              ),
+                              alignment: Alignment.center,
+                              child: const Icon(LucideIcons.send, color: Colors.white, size: 18),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),

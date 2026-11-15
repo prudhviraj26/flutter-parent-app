@@ -177,7 +177,7 @@ class _ClassUpdateScreenState extends State<ClassUpdateScreen> with WidgetsBindi
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
-                  '$count',
+                  count > 99 ? '99+' : '$count',
                   style: const TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,

@@ -555,6 +555,29 @@ class AppState extends ChangeNotifier {
         }
 
         if (teacherList.isNotEmpty) {
+          final existingTeachers = _teachersDb[studentId] ?? [];
+          for (final newT in teacherList) {
+            Teacher? existing;
+            for (final t in existingTeachers) {
+              if (t.matches(newT.id) || (newT.staffId != null && t.matches(newT.staffId!))) {
+                existing = t;
+                break;
+              }
+            }
+            if (existing != null) {
+              // Preserve active message history so live chats do not flicker or disappear
+              if (existing.messages.isNotEmpty && newT.messages.isEmpty) {
+                newT.messages.addAll(existing.messages);
+              }
+              if ((newT.threadId == null || newT.threadId!.isEmpty) && existing.threadId != null) {
+                newT.threadId = existing.threadId;
+              }
+              if (newT.unreadCount == 0 && existing.unreadCount > 0) {
+                newT.unreadCount = existing.unreadCount;
+                newT.unread = existing.unread;
+              }
+            }
+          }
           _teachersDb[studentId] = teacherList;
         }
       } catch (e) {
@@ -1406,6 +1429,7 @@ class AppState extends ChangeNotifier {
       final res = await ParentApiService.getChatDeltaMessages(currentChild.id, since: latestTime);
       final msgsJson = res['messages'] as List<dynamic>? ?? [];
       if (msgsJson.isNotEmpty) {
+        bool hasInbound = false;
         for (var m in msgsJson) {
           final parsed = Message.fromJson(m as Map<String, dynamic>);
           final existingIdx = list[idx].messages.indexWhere((e) => e.id == parsed.id);
@@ -1414,10 +1438,19 @@ class AppState extends ChangeNotifier {
           } else {
             list[idx].messages.add(parsed);
           }
+          if (parsed.sender == 'teacher') {
+            hasInbound = true;
+          }
           list[idx].lastMessage = parsed.text;
           try {
             list[idx].lastMessageAt = DateTime.parse(parsed.timestamp);
           } catch (_) {}
+        }
+        // Since the parent is actively watching this chat, automatically mark new incoming messages as read
+        if (hasInbound) {
+          list[idx].unreadCount = 0;
+          list[idx].unread = false;
+          ParentApiService.markChatThreadRead(currentChild.id).catchError((_) => false);
         }
         notifyListeners();
       }

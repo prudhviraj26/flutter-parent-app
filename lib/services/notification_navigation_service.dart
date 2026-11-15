@@ -39,6 +39,7 @@ class NotificationNavigationService {
 
   /// Active chat identifier currently open in view (suppresses foreground notification banners)
   static String? activeChatThreadId;
+  static String? activeTeacherId;
 
   /// Initializes Firebase and Local Notification subsystems safely
   static Future<void> initialize() async {
@@ -147,13 +148,18 @@ class NotificationNavigationService {
     if (notification == null) return;
 
     // Suppress notification banner if user currently has this chat thread open
-    final chatThread = message.data['threadId'] ?? message.data['teacherId'];
-    if (activeChatThreadId != null &&
-        message.data['type'] == 'chat' &&
-        chatThread != null &&
-        (chatThread == activeChatThreadId)) {
-      debugPrint('[FCM Foreground] Suppressed heads-up banner for active chat thread $activeChatThreadId');
-      return;
+    final chatThread = message.data['threadId']?.toString();
+    final teacherId = message.data['teacherId']?.toString();
+    final type = message.data['type']?.toString().toLowerCase();
+    if (type == 'chat' || type == 'parent_chat') {
+      final matchesThread = activeChatThreadId != null &&
+          (activeChatThreadId == chatThread || activeChatThreadId == teacherId);
+      final matchesTeacher = activeTeacherId != null &&
+          (activeTeacherId == teacherId || activeTeacherId == chatThread);
+      if (matchesThread || matchesTeacher) {
+        debugPrint('[FCM Foreground] Suppressed heads-up banner for active chat thread $chatThread / $teacherId');
+        return;
+      }
     }
 
     final androidDetails = AndroidNotificationDetails(
@@ -289,8 +295,22 @@ class NotificationNavigationService {
             : appState.currentChild.id;
 
         if (appState.loggedIn && targetChildId.isNotEmpty) {
-          debugPrint('[FCM Sync] Auto-refreshing live data for student: $targetChildId');
-          appState.fetchLiveChildData(targetChildId);
+          final type = data['type']?.toString().toLowerCase();
+          final chatThread = data['threadId']?.toString();
+          final teacherId = data['teacherId']?.toString();
+          final isChat = (type == 'chat' || type == 'parent_chat');
+          final matchesChat = isChat &&
+              ((activeChatThreadId != null && (activeChatThreadId == chatThread || activeChatThreadId == teacherId)) ||
+               (activeTeacherId != null && (activeTeacherId == teacherId || activeTeacherId == chatThread)));
+          if (matchesChat) {
+            final target = activeTeacherId ?? teacherId ?? activeChatThreadId;
+            if (target != null && target.isNotEmpty) {
+              appState.pollChatDelta(target);
+            }
+          } else {
+            debugPrint('[FCM Sync] Auto-refreshing live data for student: $targetChildId');
+            appState.fetchLiveChildData(targetChildId);
+          }
         }
       }
     } catch (e) {

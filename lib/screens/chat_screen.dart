@@ -403,15 +403,24 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
   final FocusNode _focusNode = FocusNode();
   Timer? _smartPollTimer;
   int _charCount = 0;
+  AppState? _appState;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _appState = Provider.of<AppState>(context, listen: false);
+  }
 
   @override
   void initState() {
     super.initState();
-    // Track active chat thread to suppress duplicate foreground push notifications
+    // Track active chat thread & teacher to suppress duplicate foreground push notifications
+    NotificationNavigationService.activeTeacherId = widget.teacher.id;
     NotificationNavigationService.activeChatThreadId = widget.teacher.threadId ?? widget.teacher.id;
 
     // Mark conversation read on enter
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       final appState = Provider.of<AppState>(context, listen: false);
       appState.markTeacherChatRead(widget.teacher.id);
       if (widget.teacher.messages.isEmpty) {
@@ -447,10 +456,12 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> {
   @override
   void dispose() {
     NotificationNavigationService.activeChatThreadId = null;
+    NotificationNavigationService.activeTeacherId = null;
     _smartPollTimer?.cancel();
     _msgController.dispose();
     _scrollController.dispose();
     _focusNode.dispose();
+    _appState?.markTeacherChatRead(widget.teacher.id);
     super.dispose();
   }
 

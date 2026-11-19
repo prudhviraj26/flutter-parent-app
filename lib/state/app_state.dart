@@ -611,8 +611,20 @@ class AppState extends ChangeNotifier {
             .map((u) => ClassUpdate.fromJson(u as Map<String, dynamic>))
             .toList();
         parsedUpdates.sort((a, b) => b.dateTime.compareTo(a.dateTime));
-        _classUpdatesDb[studentId] = parsedUpdates;
+
+        // Deduplicate by ID and content fingerprint
+        final seenIds = <String>{};
+        final seenFps = <String>{};
+        final dedupedUpdates = <ClassUpdate>[];
         for (final u in parsedUpdates) {
+          final fp = '${u.type.trim().toLowerCase()}_${u.subject.trim().toLowerCase()}_${u.title.trim().toLowerCase()}_${u.body.trim().toLowerCase()}_${u.date}';
+          if (seenIds.add(u.id) && seenFps.add(fp)) {
+            dedupedUpdates.add(u);
+          }
+        }
+
+        _classUpdatesDb[studentId] = dedupedUpdates;
+        for (final u in dedupedUpdates) {
           if (u.isRead) {
             _readClassUpdateIds.add(u.id);
           }
@@ -1222,8 +1234,20 @@ class AppState extends ChangeNotifier {
           .map<ClassUpdate>((u) => ClassUpdate.fromJson(u as Map<String, dynamic>))
           .toList();
       parsed.sort((a, b) => b.dateTime.compareTo(a.dateTime));
-      _classUpdatesDb[studentId] = parsed;
+
+      // Deduplicate by ID and content fingerprint
+      final seenIds = <String>{};
+      final seenFps = <String>{};
+      final deduped = <ClassUpdate>[];
       for (final u in parsed) {
+        final fp = '${u.type.trim().toLowerCase()}_${u.subject.trim().toLowerCase()}_${u.title.trim().toLowerCase()}_${u.body.trim().toLowerCase()}_${u.date}';
+        if (seenIds.add(u.id) && seenFps.add(fp)) {
+          deduped.add(u);
+        }
+      }
+
+      _classUpdatesDb[studentId] = deduped;
+      for (final u in deduped) {
         if (u.isRead) {
           _readClassUpdateIds.add(u.id);
         }
@@ -1355,7 +1379,7 @@ class AppState extends ChangeNotifier {
       DateTime? lastMsgAt;
       if (msgs.isNotEmpty) {
         try {
-          lastMsgAt = DateTime.parse(msgs.last.timestamp);
+          lastMsgAt = DateTime.parse(msgs.last.timestamp).toLocal();
         } catch (_) {}
       }
 
@@ -1443,7 +1467,7 @@ class AppState extends ChangeNotifier {
           }
           list[idx].lastMessage = parsed.text;
           try {
-            list[idx].lastMessageAt = DateTime.parse(parsed.timestamp);
+            list[idx].lastMessageAt = DateTime.parse(parsed.timestamp).toLocal();
           } catch (_) {}
         }
         // Since the parent is actively watching this chat, automatically mark new incoming messages as read
@@ -1668,7 +1692,7 @@ class AppState extends ChangeNotifier {
           teacher: 'Mrs. Priya Patel',
           body: 'Complete exercises 1-10 from Chapter 5: Multiplication Tables. Show all working steps.',
           date: '2026-05-08',
-          attachments: ['worksheet_multiplication.pdf'],
+          attachments: [NoticeAttachment(name: 'worksheet_multiplication.pdf', url: '')],
         ),
         ClassUpdate(
           id: '2',
@@ -1687,7 +1711,7 @@ class AppState extends ChangeNotifier {
           teacher: 'Dr. Kavita Singh',
           body: 'Draw and label the parts of a plant. Also, write 5 sentences about the importance of plants.',
           date: '2026-05-06',
-          attachments: ['plant_diagram_template.pdf'],
+          attachments: [NoticeAttachment(name: 'plant_diagram_template.pdf', url: '')],
         ),
       ],
       'priya': [

@@ -56,7 +56,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final currentChild = appState.currentChild;
 
     // Retrieve active student metrics from state
-    final fees = appState.fees;
     final events = appState.events;
     final childAvatar = appState.childAvatars[currentChild.id];
 

@@ -245,11 +245,11 @@ class Teacher {
     DateTime? lAt;
     if (json['lastMessageAt'] != null) {
       try {
-        lAt = DateTime.parse(json['lastMessageAt'].toString());
+        lAt = DateTime.parse(json['lastMessageAt'].toString()).toLocal();
       } catch (_) {}
     } else if (msgs.isNotEmpty) {
       try {
-        lAt = DateTime.parse(msgs.last.timestamp);
+        lAt = DateTime.parse(msgs.last.timestamp).toLocal();
       } catch (_) {}
     }
 
@@ -555,7 +555,7 @@ class ClassUpdate {
   final String classTarget; // mapped from class
   final String teacher;
   final String body;
-  final List<String> attachments;
+  final List<NoticeAttachment> attachments;
   final String date;
   final String time;
   final String? publishedAt;
@@ -598,14 +598,14 @@ class ClassUpdate {
     final rawType = (json['type'] ?? (json['broadcastType'] == 'classwork' ? 'Classwork' : 'Homework')).toString();
     final bType = (json['broadcastType'] ?? (rawType.toLowerCase() == 'classwork' ? 'classwork' : 'homework')).toString();
 
-    List<String> parsedAttachments = [];
+    List<NoticeAttachment> parsedAttachments = [];
     if (json['attachments'] is List) {
       for (final a in json['attachments'] as List) {
-        if (a is String && a.isNotEmpty) {
-          parsedAttachments.add(a);
-        } else if (a is Map<String, dynamic>) {
-          final url = (a['readUrl'] ?? a['url'] ?? '').toString();
-          if (url.isNotEmpty) parsedAttachments.add(url);
+        if (a is Map<String, dynamic>) {
+          parsedAttachments.add(NoticeAttachment.fromJson(a));
+        } else if (a is String && a.isNotEmpty) {
+          final fileName = a.split('/').last.split('?').first;
+          parsedAttachments.add(NoticeAttachment(name: fileName, url: a));
         }
       }
     }
@@ -649,7 +649,7 @@ class ClassUpdate {
       'class': classTarget,
       'teacher': teacher,
       'body': body,
-      'attachments': attachments,
+      'attachments': attachments.map((a) => a.toJson()).toList(),
       'date': date,
       'time': time,
       'publishedAt': publishedAt,

@@ -774,14 +774,14 @@ class ClassUpdateDetailScreen extends StatelessWidget {
 
   const ClassUpdateDetailScreen({super.key, required this.update});
 
-  Future<void> _openAttachment(BuildContext context, String fileUrl) async {
-    final fileName = fileUrl.split('/').last.split('?').first;
+  Future<void> _openAttachment(BuildContext context, NoticeAttachment att) async {
+    final key = att.blobPath != null && att.blobPath!.isNotEmpty ? att.blobPath! : att.url;
     await AttachmentLocalStore.openAttachment(
       context: context,
-      key: fileUrl,
-      url: fileUrl,
-      dateStr: update.date,
-      originalFileName: fileName,
+      key: key,
+      url: att.url,
+      dateStr: update.publishedAt ?? update.date,
+      originalFileName: att.name,
     );
   }
 
@@ -1015,55 +1015,87 @@ class ClassUpdateDetailScreen extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 14),
-                    ...update.attachments.map((file) {
-                      final fileName = file.split('/').last.split('?').first;
+                    ...update.attachments.map((att) {
+                      final isPdf = att.name.toLowerCase().endsWith('.pdf') || att.contentType.contains('pdf');
+                      final isImage = att.name.toLowerCase().endsWith('.jpg') ||
+                          att.name.toLowerCase().endsWith('.jpeg') ||
+                          att.name.toLowerCase().endsWith('.png') ||
+                          att.name.toLowerCase().endsWith('.webp') ||
+                          att.contentType.contains('image');
+                      final isVideo = att.name.toLowerCase().endsWith('.mp4') ||
+                          att.name.toLowerCase().endsWith('.mov') ||
+                          att.contentType.contains('video');
+
+                      IconData fileIcon = LucideIcons.fileText;
+                      Color iconColor = const Color(0xFF0284C7);
+                      Color iconBg = const Color(0xFFE0F2FE);
+
+                      if (isPdf) {
+                        fileIcon = LucideIcons.fileSpreadsheet;
+                        iconColor = const Color(0xFFDC2626);
+                        iconBg = const Color(0xFFFEE2E2);
+                      } else if (isImage) {
+                        fileIcon = LucideIcons.image;
+                        iconColor = const Color(0xFF059669);
+                        iconBg = const Color(0xFFD1FAE5);
+                      } else if (isVideo) {
+                        fileIcon = LucideIcons.video;
+                        iconColor = const Color(0xFF7C3AED);
+                        iconBg = const Color(0xFFEDE9FE);
+                      }
+
                       return Container(
                         margin: const EdgeInsets.only(bottom: 10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF9FAFB),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.border),
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
                         ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () => _openAttachment(context, file),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              child: Row(
-                                children: [
-                                  const Icon(LucideIcons.fileText, color: AppColors.primaryTeal, size: 20),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          fileName.isNotEmpty ? fileName : 'Attachment',
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontSize: 13,
-                                            color: AppColors.textMain,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 2),
-                                        const Text(
-                                          'Tap to open file',
-                                          style: TextStyle(
-                                            fontSize: 11,
-                                            color: AppColors.primaryTeal,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  const Icon(LucideIcons.externalLink, color: AppColors.textMuted, size: 16),
-                                ],
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                          leading: Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: iconBg,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              fileIcon,
+                              color: iconColor,
+                              size: 20,
+                            ),
+                          ),
+                          title: Text(
+                            att.name,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textMain,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          subtitle: att.formattedSize.isNotEmpty
+                              ? Text(
+                                  att.formattedSize,
+                                  style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                                )
+                              : null,
+                          trailing: ElevatedButton.icon(
+                            onPressed: att.url.isNotEmpty
+                                ? () => _openAttachment(context, att)
+                                : null,
+                            icon: const Icon(LucideIcons.externalLink, size: 14),
+                            label: const Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryTeal,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
                               ),
+                              elevation: 0,
                             ),
                           ),
                         ),

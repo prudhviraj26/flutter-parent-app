@@ -378,13 +378,22 @@ class _TalkToTeacherScreenState extends State<TalkToTeacherScreen> {
   }
 
   String _formatTimeLabel(DateTime dt) {
+    final localDt = dt.toLocal();
     final now = DateTime.now();
-    if (now.year == dt.year && now.month == dt.month && now.day == dt.day) {
-      final hour12 = dt.hour == 0 ? 12 : (dt.hour > 12 ? dt.hour - 12 : dt.hour);
-      final period = dt.hour >= 12 ? 'PM' : 'AM';
-      return "$hour12:${dt.minute.toString().padLeft(2, '0')} $period";
+    final today = DateTime(now.year, now.month, now.day);
+    final msgDate = DateTime(localDt.year, localDt.month, localDt.day);
+    final diffDays = today.difference(msgDate).inDays;
+
+    if (diffDays == 0) {
+      final hour12 = localDt.hour == 0 ? 12 : (localDt.hour > 12 ? localDt.hour - 12 : localDt.hour);
+      final period = localDt.hour >= 12 ? 'PM' : 'AM';
+      return "$hour12:${localDt.minute.toString().padLeft(2, '0')} $period";
+    } else if (diffDays == 1) {
+      return 'Yesterday';
+    } else if (localDt.year == now.year) {
+      return "${localDt.day}/${localDt.month}";
     }
-    return "${dt.day}/${dt.month}/${dt.year}";
+    return "${localDt.day}/${localDt.month}/${localDt.year}";
   }
 }
 
@@ -639,7 +648,23 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> with WidgetsBindi
                 final isMe = message.sender == 'parent';
                 final isDeleted = message.isDeleted;
 
-                return GestureDetector(
+                final currDate = _parseMessageDate(message.timestamp);
+                bool showDateSeparator = false;
+                if (currDate != null) {
+                  if (idx == 0) {
+                    showDateSeparator = true;
+                  } else {
+                    final prevDate = _parseMessageDate(messages[idx - 1].timestamp);
+                    if (prevDate == null ||
+                        prevDate.year != currDate.year ||
+                        prevDate.month != currDate.month ||
+                        prevDate.day != currDate.day) {
+                      showDateSeparator = true;
+                    }
+                  }
+                }
+
+                final bubble = GestureDetector(
                   onLongPress: isMe && !isDeleted ? () => _handleDeleteMessage(message) : null,
                   child: Align(
                     alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
@@ -717,6 +742,17 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> with WidgetsBindi
                     ),
                   ),
                 );
+
+                if (showDateSeparator && currDate != null) {
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildDateSeparator(currDate),
+                      bubble,
+                    ],
+                  );
+                }
+                return bubble;
               },
             ),
           ),
@@ -826,10 +862,56 @@ class _TeacherChatScreenState extends State<TeacherChatScreen> with WidgetsBindi
     }
   }
 
+  DateTime? _parseMessageDate(String ts) {
+    if (ts.isEmpty) return null;
+    try {
+      return DateTime.parse(ts).toLocal();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Widget _buildDateSeparator(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final msgDate = DateTime(date.year, date.month, date.day);
+    final diffDays = today.difference(msgDate).inDays;
+
+    String text;
+    if (diffDays == 0) {
+      text = 'Today';
+    } else if (diffDays == 1) {
+      text = 'Yesterday';
+    } else if (date.year == now.year) {
+      text = DateFormat('d MMMM').format(date);
+    } else {
+      text = DateFormat('d MMMM yyyy').format(date);
+    }
+
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.only(top: 8, bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
+        decoration: BoxDecoration(
+          color: const Color(0xFFE2E8F0),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          text,
+          style: const TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF475569),
+          ),
+        ),
+      ),
+    );
+  }
+
   String _formatMessageTimestamp(String ts) {
     if (ts.isEmpty) return '';
     try {
-      final dt = DateTime.parse(ts);
+      final dt = DateTime.parse(ts).toLocal();
       final hour12 = dt.hour == 0 ? 12 : (dt.hour > 12 ? dt.hour - 12 : dt.hour);
       final period = dt.hour >= 12 ? 'PM' : 'AM';
       return "$hour12:${dt.minute.toString().padLeft(2, '0')} $period";
